@@ -172,6 +172,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.console_tab = self.create_console_tab()
         self.contacts_tab = self.create_contacts_tab()
         self.converter_tab = self.create_converter_tab()
+        self.keyserver_tab = self.create_keyserver_tab()
         tabs.addTab(self.create_history_tab(), QIcon(":icons/tab_history.png"), _('History'))
         tabs.addTab(self.send_tab, QIcon(":icons/tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, QIcon(":icons/tab_receive.png"), _('Receive'))
@@ -191,6 +192,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         add_optional_tab(tabs, self.contacts_tab, QIcon(":icons/tab_contacts.png"), _("Con&tacts"), "contacts")
         add_optional_tab(tabs, self.converter_tab, QIcon(":icons/tab_converter.svg"), _("Address Converter"), "converter", True)
         add_optional_tab(tabs, self.console_tab, QIcon(":icons/tab_console.png"), _("Con&sole"), "console")
+        tabs.addTab(self.keyserver_tab, QIcon(":icons/tab_console.png"), _('Keyserver'))
 
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
@@ -2255,6 +2257,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.payto_e.setText(_("please wait..."))
         return True
 
+    def prepare_for_payment_request_ks(self):
+        self.show_send_tab()
+        self.payto_e.is_pr = True
+        for e in [self.payto_e, self.amount_e, self.message_e]:
+            e.setFrozen(True)
+        self.max_button.setDisabled(True)
+        self.payto_e.setText(_("please wait..."))
+        return True
+
     def delete_invoice(self, key):
         self.invoices.remove(key)
         self.invoice_list.update()
@@ -2517,6 +2528,44 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.contact_list = l = ContactList(self)
         return self.create_list_tab(l)
 
+    def create_keyserver_tab(self):
+        self.keyserver_grid = grid = QGridLayout()
+        grid.setSpacing(8)
+        grid.setColumnStretch(3, 1)
+
+        msg = _('Address to put to.')
+        description_label = HelpLabel(_('&Address'), msg)
+        grid.addWidget(description_label, 1, 0)
+        self.ks_addr_e = MyLineEdit()
+        description_label.setBuddy(self.ks_addr_e)
+        grid.addWidget(self.ks_addr_e, 1, 1, 1, -1)
+
+        msg = _('Path to payload.')
+        description_label = HelpLabel(_('&Payload'), msg)
+        grid.addWidget(description_label, 2, 0)
+        self.payload_e = MyLineEdit()
+        description_label.setBuddy(self.payload_e)
+        grid.addWidget(self.payload_e, 2, 1, 1, -1)
+
+        self.put_button = EnterButton(_("&Put Payload"), self.payfor_put)
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        buttons.addWidget(self.put_button)
+        grid.addLayout(buttons, 3, 1, 1, 3)
+
+
+        vbox0 = QVBoxLayout()
+        vbox0.addLayout(grid)
+        hbox = QHBoxLayout()
+        hbox.addLayout(vbox0)
+
+        w = QWidget()
+        vbox = QVBoxLayout(w)
+        vbox.addLayout(hbox)
+        vbox.addStretch(1)
+        return w
+
+
     def remove_address(self, addr):
         if self.question(_("Do you want to remove {} from your wallet?"
                            .format(addr.to_ui_string()))):
@@ -2573,6 +2622,100 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             text = "\n".join([payee + ", 0" for payee in payees])
             self.payto_e.setText(text)
             self.payto_e.setFocus()
+
+    def basic_metadata(self, addr):
+        from hashlib import sha256
+        from electroncash.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata
+
+        text = self.payload_e.text().encode('utf8')
+        addr = Address.from_string(addr)
+
+        # Construct Payload
+        metadata_field = MetadataField(
+            headers=[], metadata=text)
+        timestamp = int(time.time())
+        ttl = 3000
+        payload = Payload(timestamp=timestamp, ttl=ttl, rows=[metadata_field])
+
+        # Sign
+        password = self.password_dialog()
+        raw_payload = payload.SerializeToString()
+        digest = sha256(sha256(raw_payload).digest()).digest()
+        signature = self.wallet.sign_digest(addr, digest, password)
+        public_key = bytes.fromhex(self.wallet.get_public_key(addr))
+        print(public_key)
+
+        # Address metadata
+        addr_metadata = AddressMetadata(
+            pub_key=public_key, payload=payload, scheme=1, signature=signature)
+        raw_addr_meta = addr_metadata.SerializeToString()
+        return raw_addr_meta
+
+    _payforput_popup_kill_tab_changed_connection = None
+    def payfor_put(self):
+        ''' Pay-for-put to keyserver '''
+        addr = str(self.ks_addr_e.text())
+        ks_url = "http://35.232.229.28" # TODO: Get from keyserver list
+        url = "%s/keys/%s" % (ks_url, addr)
+
+        # Construct basic metadata from payload text
+        metadata = self.basic_metadata(addr)   
+
+        if not self.payment_request:
+            if self.gui_object.warn_if_no_network(self):
+                return
+            
+        def get_ks_pr():
+            # Runs in thread
+            self.print_error("Keyserver URL", url)
+            pr = paymentrequest.get_payment_request(url, method='PUT', raise_for_status=402)
+            return pr
+
+        def on_success(pr):
+            # Runs in main thread
+            if pr:
+                # Set payment request to handle keyserver PUT
+                pr.keyserver = True
+                pr.metadata = metadata
+                if pr.error:
+                    # TODO: Fallback to other node?
+                    self.print_error("Keyserver ERROR", pr.error)
+                    self.show_error(_("There was an error interfacing with the keyserver."))
+                    return
+                self.print_error("Keyserver RESULT", repr(pr))
+                self.prepare_for_payment_request_ks()
+                def show_popup():
+                    if not self.send_button.isVisible():
+                        # likely a watching-only wallet, in which case
+                        # showing the popup label for the send button
+                        # leads to unspecified position for the button
+                        return
+                    show_it = partial(
+                                ShowPopupLabel,
+                                text=_("Please review payment before sending to Keyserver"),
+                                target=self.send_button, timeout=15000.0,
+                                name="KeyserverPopup",
+                                pointer_position=PopupWidget.LeftSide,
+                                activation_hides=True, track_target=True,
+                                dark_mode = ColorScheme.dark_scheme
+                    )
+                    if not self._payforput_popup_kill_tab_changed_connection:
+                        # this ensures that if user changes tabs, the popup dies
+                        # ... it is only connected once per instance lifetime
+                        self._payforput_popup_kill_tab_changed_connection = self.tabs.currentChanged.connect(lambda: KillPopupLabel("KeyserverPopup"))
+                    QTimer.singleShot(0, show_it)
+                pr.request_ok_callback = show_popup
+                self.on_pr(pr)
+
+
+        def on_error(exc):
+            self.print_error("Keyserver EXCEPTION", repr(exc))
+            self.on_error(exc)
+
+        WaitingDialog(self.top_level_window(),
+                _("Retrieving Keyserver info, please wait ..."),
+                get_ks_pr, on_success, on_error)
+        pass
 
     def resolve_cashacct(self, name):
         ''' Throws up a WaitingDialog while it resolves a Cash Account.
