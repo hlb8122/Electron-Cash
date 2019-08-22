@@ -2534,25 +2534,41 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.setSpacing(8)
         grid.setColumnStretch(3, 1)
 
-        msg = _('Address to put to.')
+        def pick_address():
+            addr = self._pick_address()
+            if addr:
+                self.ks_addr_e.setText(addr.to_ui_string())
+
+        msg = _('Address to put to.  Use the tool button on the right to pick a wallet address.')
         description_label = HelpLabel(_('&Address'), msg)
         grid.addWidget(description_label, 1, 0)
-        self.ks_addr_e = MyLineEdit()
+        self.ks_addr_e = ButtonsLineEdit()
+        self.ks_addr_e.setReadOnly(True)
+        self.ks_addr_e.setPlaceholderText(_("Specify a wallet address"))
+        self.ks_addr_e.addButton(":icons/tab_addresses.png", on_click=pick_address, tooltip=_("Pick an address from your wallet"))
         description_label.setBuddy(self.ks_addr_e)
         grid.addWidget(self.ks_addr_e, 1, 1, 1, -1)
 
         msg = _('Path to payload.')
         description_label = HelpLabel(_('&Payload'), msg)
         grid.addWidget(description_label, 2, 0)
-        self.payload_e = MyLineEdit()
+        self.payload_e = QTextEdit()
         description_label.setBuddy(self.payload_e)
         grid.addWidget(self.payload_e, 2, 1, 1, -1)
 
-        self.put_button = EnterButton(_("&Put Payload"), self.payfor_put)
-        buttons = QHBoxLayout()
-        buttons.addStretch(1)
-        buttons.addWidget(self.put_button)
-        grid.addLayout(buttons, 3, 1, 1, 3)
+        clear_button = QPushButton(_("&Clear form"))
+        put_button = EnterButton(_("&Put Payload"), self.payfor_put)
+        grid.addLayout(Buttons(clear_button, put_button), 3, 1, 1, 3)
+        def on_text_changed():
+            # TODO: More validation here. Make sure payload_e is not garbage
+            put_button.setEnabled(bool(self.ks_addr_e.text() and self.payload_e.toPlainText()))
+        def on_clear():
+            self.ks_addr_e.clear()
+            self.payload_e.clear()
+        clear_button.clicked.connect(on_clear)
+        self.ks_addr_e.textChanged.connect(on_text_changed)
+        self.payload_e.textChanged.connect(on_text_changed)
+        on_text_changed()  # start button off disabled
 
 
         vbox0 = QVBoxLayout()
@@ -2628,7 +2644,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         from hashlib import sha256
         from electroncash.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata
 
-        text = self.payload_e.text().encode('utf8')
+        text = self.payload_e.toPlainText().encode('utf8')
         addr = Address.from_string(addr)
 
         # Construct Payload
