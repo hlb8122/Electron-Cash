@@ -671,10 +671,9 @@ class EC_KEY(object):
         return signature
 
     def sign_digest(self, digest):
-        private_key = MySigningKey.from_secret_exponent(self.secret, curve = SECP256k1)
-        signature = private_key.sign_digest_deterministic(msg_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_string)
-        return signature
-    
+        digest = to_bytes(digest, 'utf8')
+        return self.sign(digest)
+
     def sign_message(self, message, is_compressed):
         message = to_bytes(message, 'utf8')
         signature = self.sign(Hash(msg_magic(message)))
