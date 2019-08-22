@@ -1834,7 +1834,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
 
     def sign_digest(self, address, message, password):
         index = self.get_address_index(address)
-        return self.keystore.sign_message(index, message, password)
+        return self.keystore.sign_digest(index, message, password)
 
     def sign_message(self, address, message, password):
         index = self.get_address_index(address)

@@ -192,7 +192,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         add_optional_tab(tabs, self.contacts_tab, QIcon(":icons/tab_contacts.png"), _("Con&tacts"), "contacts")
         add_optional_tab(tabs, self.converter_tab, QIcon(":icons/tab_converter.svg"), _("Address Converter"), "converter", True)
         add_optional_tab(tabs, self.console_tab, QIcon(":icons/tab_console.png"), _("Con&sole"), "console")
-        tabs.addTab(self.keyserver_tab, QIcon(":icons/tab_console.png"), _('Keyserver'))
+        add_optional_tab(tabs, self.keyserver_tab, QIcon(":icons/tab_console.png"), _('&Keyserver'), "keyserver", True)
 
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
@@ -648,6 +648,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         add_toggle_action(view_menu, self.contacts_tab)
         add_toggle_action(view_menu, self.converter_tab)
         add_toggle_action(view_menu, self.console_tab)
+        add_toggle_action(view_menu, self.keyserver_tab)
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
@@ -2623,7 +2624,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.payto_e.setText(text)
             self.payto_e.setFocus()
 
-    def basic_metadata(self, addr):
+    def _basic_metadata(self, addr):
         from hashlib import sha256
         from electroncash.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata
 
@@ -2637,13 +2638,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         ttl = 3000
         payload = Payload(timestamp=timestamp, ttl=ttl, rows=[metadata_field])
 
+        password = None
+        while self.wallet.has_password():
+            # grab password
+            password = self.password_dialog()
+            if password is None:
+                # User cancel
+                raise UserCancelled()
+            try:
+                self.wallet.check_password(password)
+                break
+            except InvalidPassword:
+                self.show_error(_("Invalid password, try again"))
+                continue
+
         # Sign
-        password = self.password_dialog()
         raw_payload = payload.SerializeToString()
         digest = sha256(sha256(raw_payload).digest()).digest()
         signature = self.wallet.sign_digest(addr, digest, password)
         public_key = bytes.fromhex(self.wallet.get_public_key(addr))
-        print(public_key)
+        self.print_error(public_key)
 
         # Address metadata
         addr_metadata = AddressMetadata(
@@ -2658,13 +2672,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         ks_url = "http://35.232.229.28" # TODO: Get from keyserver list
         url = "%s/keys/%s" % (ks_url, addr)
 
-        # Construct basic metadata from payload text
-        metadata = self.basic_metadata(addr)   
+        try:
+            # Construct basic metadata from payload text
+            metadata = self._basic_metadata(addr)
+        except UserCancelled:
+            return
+        except Exception as e:
+            self.print_error("_basic_metadata:", repr(e))
+            self.show_error(str(e))
+            return
 
         if not self.payment_request:
             if self.gui_object.warn_if_no_network(self):
                 return
-            
+
         def get_ks_pr():
             # Runs in thread
             self.print_error("Keyserver URL", url)
@@ -2715,7 +2736,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         WaitingDialog(self.top_level_window(),
                 _("Retrieving Keyserver info, please wait ..."),
                 get_ks_pr, on_success, on_error)
-        pass
 
     def resolve_cashacct(self, name):
         ''' Throws up a WaitingDialog while it resolves a Cash Account.
