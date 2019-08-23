@@ -2530,49 +2530,101 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.create_list_tab(l)
 
     def create_keyserver_tab(self):
-        self.keyserver_grid = grid = QGridLayout()
-        grid.setSpacing(8)
-        grid.setColumnStretch(3, 1)
+        # Upload
+        put_groupbox = QGroupBox("Upload")
+        
+        put_grid = QGridLayout()
+        put_grid.setSpacing(8)
+        put_grid.setColumnStretch(3, 1)
 
         def pick_address():
             addr = self._pick_address()
             if addr:
-                self.ks_addr_e.setText(addr.to_full_ui_string())
+                self.ks_addr_put_e.setText(addr.to_full_ui_string())
 
-        msg = _('Address to put to.  Use the tool button on the right to pick a wallet address.')
+        msg = _('Address to uploaded to.  Use the tool button on the right to pick a wallet address.')
         description_label = HelpLabel(_('&Address'), msg)
-        grid.addWidget(description_label, 1, 0)
-        self.ks_addr_e = ButtonsLineEdit()
-        self.ks_addr_e.setReadOnly(True)
-        self.ks_addr_e.setPlaceholderText(_("Specify a wallet address"))
-        self.ks_addr_e.addButton(":icons/tab_addresses.png", on_click=pick_address, tooltip=_("Pick an address from your wallet"))
-        description_label.setBuddy(self.ks_addr_e)
-        grid.addWidget(self.ks_addr_e, 1, 1, 1, -1)
+        put_grid.addWidget(description_label, 1, 0)
+        self.ks_addr_put_e = ButtonsLineEdit()
+        self.ks_addr_put_e.setReadOnly(True)
+        self.ks_addr_put_e.setPlaceholderText(_("Specify a wallet address"))
+        self.ks_addr_put_e.addButton(":icons/tab_addresses.png", on_click=pick_address, tooltip=_("Pick an address from your wallet"))
+        description_label.setBuddy(self.ks_addr_put_e)
+        put_grid.addWidget(self.ks_addr_put_e, 1, 1, 1, -1)
 
-        msg = _('Path to payload.')
+        msg = _('Payload to be uploaded.')
         description_label = HelpLabel(_('&Payload'), msg)
-        grid.addWidget(description_label, 2, 0)
-        self.payload_e = QTextEdit()
-        description_label.setBuddy(self.payload_e)
-        grid.addWidget(self.payload_e, 2, 1, 1, -1)
+        put_grid.addWidget(description_label, 2, 0)
+        self.payload_put_e = QTextEdit()
+        description_label.setBuddy(self.payload_put_e)
+        put_grid.addWidget(self.payload_put_e, 2, 1, 1, -1)
 
         clear_button = QPushButton(_("&Clear form"))
         put_button = EnterButton(_("&Put Payload"), self.payfor_put)
-        grid.addLayout(Buttons(clear_button, put_button), 3, 1, 1, 3)
+        put_grid.addLayout(Buttons(clear_button, put_button), 3, 1, 1, 3)
         def on_text_changed():
-            # TODO: More validation here. Make sure payload_e is not garbage
-            put_button.setEnabled(bool(self.ks_addr_e.text() and self.payload_e.toPlainText()))
+            # TODO: More validation here. Make sure payload_put_e is not garbage
+            put_button.setEnabled(bool(self.ks_addr_put_e.text() and self.payload_put_e.toPlainText()))
         def on_clear():
-            self.ks_addr_e.clear()
-            self.payload_e.clear()
+            self.ks_addr_put_e.clear()
+            self.payload_put_e.clear()
         clear_button.clicked.connect(on_clear)
-        self.ks_addr_e.textChanged.connect(on_text_changed)
-        self.payload_e.textChanged.connect(on_text_changed)
+        self.ks_addr_put_e.textChanged.connect(on_text_changed)
+        self.payload_put_e.textChanged.connect(on_text_changed)
         on_text_changed()  # start button off disabled
 
+        put_groupbox.setLayout(put_grid)
+        
+        # Download
+        get_groupbox = QGroupBox("Download")
 
+        get_grid = QGridLayout()
+        get_grid.setSpacing(8)
+        get_grid.setColumnStretch(3, 1)
+
+        def pick_address_get():
+            import requests
+            from google.protobuf.json_format import MessageToJson 
+            from electroncash.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata
+
+            addr = self._pick_address()
+            if addr:
+                ks_url = self._get_keyserver_url()
+                addr = addr.to_full_ui_string()
+                url = "%s/keys/%s" % (ks_url, addr)
+                self.ks_addr_get_e.setText(url)
+            
+                # TODO: Handle 404 error
+                response = requests.get(url=url)
+                addr_metadata = AddressMetadata.FromString(response.content)
+                json_metadata = MessageToJson(addr_metadata)
+                self.payload_get_e.setText(json_metadata)
+
+
+        msg = _('Address to downloaded from.  Use the tool button on the right to pick a wallet address.')
+        description_label = HelpLabel(_('&Address'), msg)
+        get_grid.addWidget(description_label, 1, 0)
+        self.ks_addr_get_e = ButtonsLineEdit()
+        self.ks_addr_get_e.setReadOnly(True)
+        self.ks_addr_get_e.setPlaceholderText(_("Specify a wallet address"))
+        self.ks_addr_get_e.addButton(":icons/tab_addresses.png", on_click=pick_address_get, tooltip=_("Pick an address from your wallet"))
+        description_label.setBuddy(self.ks_addr_get_e)
+        get_grid.addWidget(self.ks_addr_get_e, 1, 1, 1, -1)
+
+        msg = _('Downloaded Payload.')
+        description_label = HelpLabel(_('&Payload'), msg)
+        get_grid.addWidget(description_label, 2, 0)
+        self.payload_get_e = QTextEdit()
+        self.payload_get_e.setReadOnly(True)
+        description_label.setBuddy(self.payload_get_e)
+        get_grid.addWidget(self.payload_get_e, 2, 1, 1, -1)
+
+        get_groupbox.setLayout(get_grid)
+
+        # Compose
         vbox0 = QVBoxLayout()
-        vbox0.addLayout(grid)
+        vbox0.addWidget(put_groupbox)
+        vbox0.addWidget(get_groupbox)
         hbox = QHBoxLayout()
         hbox.addLayout(vbox0)
 
@@ -2644,7 +2696,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         from hashlib import sha256
         from electroncash.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata
 
-        text = self.payload_e.toPlainText().encode('utf8')
+        text = self.payload_put_e.toPlainText().encode('utf8')
         addr = Address.from_string(addr)
 
         # Construct Payload
@@ -2681,11 +2733,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         raw_addr_meta = addr_metadata.SerializeToString()
         return raw_addr_meta
 
+    def _get_keyserver_url(self):
+        ks_url = "http://35.232.229.28" # TODO: Get from keyserver list
+        return ks_url
+
     _payforput_popup_kill_tab_changed_connection = None
     def payfor_put(self):
         ''' Pay-for-put to keyserver '''
-        addr = str(self.ks_addr_e.text())
-        ks_url = "http://35.232.229.28" # TODO: Get from keyserver list
+        addr = str(self.ks_addr_put_e.text())
+        ks_url = self._get_keyserver_url()
         url = "%s/keys/%s" % (ks_url, addr)
 
         try:
