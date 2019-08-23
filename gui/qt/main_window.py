@@ -2537,7 +2537,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def pick_address():
             addr = self._pick_address()
             if addr:
-                self.ks_addr_e.setText(addr.to_ui_string())
+                self.ks_addr_e.setText(addr.to_full_ui_string())
 
         msg = _('Address to put to.  Use the tool button on the right to pick a wallet address.')
         description_label = HelpLabel(_('&Address'), msg)
