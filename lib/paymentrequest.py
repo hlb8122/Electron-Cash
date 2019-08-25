@@ -76,7 +76,7 @@ PR_PAID    = 3     # send and propagated
 
 
 
-def get_payment_request(url, method='GET', raise_for_status=None):
+def get_payment_request(url):
     data = error = None
     try:
         u = urllib.parse.urlparse(url)
@@ -90,13 +90,8 @@ def get_payment_request(url, method='GET', raise_for_status=None):
         #.. else, try regular BIP70
         if u.scheme in ['http', 'https']:
             try:
-                response = requests.request(method, url, headers=REQUEST_HEADERS)
-                if raise_for_status is not None:
-                    if response.status_code != raise_for_status:
-                        # TODO: Proper error
-                        raise 
-                else:
-                    response.raise_for_status()
+                response = requests.request('GET', url, headers=REQUEST_HEADERS)
+                response.raise_for_status()
                 # Guard against `bitcoincash:`-URIs with invalid payment request URLs
                 if "Content-Type" not in response.headers \
                 or response.headers["Content-Type"] != "application/bitcoincash-paymentrequest":
@@ -114,8 +109,40 @@ def get_payment_request(url, method='GET', raise_for_status=None):
                 error = "payment URL not pointing to a valid file"
         else:
             error = f"unknown scheme: '{u.scheme}'"
+
     return PaymentRequest(data, error)
 
+def get_ks_payment_request(url):
+    data = error = None
+    try:
+        u = urllib.parse.urlparse(url)
+    except ValueError as e:
+        error = str(e)
+    else:
+        if u.scheme in ['http', 'https']:
+            try:
+                response = requests.request("PUT", url, headers=REQUEST_HEADERS)
+                if response.status_code != 402:
+                    response.raise_for_status()
+                    
+                # Guard against `bitcoincash:`-URIs with invalid payment request URLs
+                if "Content-Type" not in response.headers \
+                or response.headers["Content-Type"] != "application/bitcoincash-paymentrequest":
+                    error = "payment URL not pointing to a bitcoincash payment request handling server"
+                else:
+                    data = response.content
+                print_error('fetched payment request', url, len(response.content))
+            except requests.exceptions.RequestException as e:
+                error = str(e)
+        elif u.scheme == 'file':
+            try:
+                with open(u.path, 'r', encoding='utf-8') as f:
+                    data = f.read()
+            except IOError:
+                error = "payment URL not pointing to a valid file"
+        else:
+            error = f"unknown scheme: '{u.scheme}'"
+    return KSPaymentRequest(data, error)
 
 class PaymentRequest:
 
@@ -125,8 +152,6 @@ class PaymentRequest:
         self.parse(data)
         self.requestor = None # known after verify
         self.tx = None
-        self.keyserver = False
-        self.metadata = None
 
     def __str__(self):
         return str(self.raw)
@@ -289,10 +314,10 @@ class PaymentRequest:
         pm = paymnt.SerializeToString()
         payurl = urllib.parse.urlparse(pay_det.payment_url)
         try:
-            r = requests.post(payurl.geturl(), data=pm, headers=ACK_HEADERS, verify=ca_path, allow_redirects=(not self.keyserver))
+            r = requests.post(payurl.geturl(), data=pm, headers=ACK_HEADERS, verify=ca_path)
         except requests.exceptions.RequestException as e:
             return False, str(e)
-        if r.status_code != 200 and not (self.keyserver and r.status_code == 302):
+        if r.status_code != 200:
             # Propagate 'Bad request' (HTTP 400) messages to the user since they
             # contain valuable information.
             if r.status_code == 400:
@@ -306,17 +331,6 @@ class PaymentRequest:
         except Exception:
             return False, "PaymentACK could not be processed. Payment was sent; please manually verify that payment was received."
         print("PaymentACK message received: %s" % paymntack.memo)
-
-        if self.keyserver:
-            # PUT using token URL
-            try:
-                token_url = r.headers["Location"]
-                r = requests.put(url=token_url, data=self.metadata)
-                if r.status_code != 200:
-                    return False, "Failed to put to keyserver; %s" % r.text
-            except Exception:
-                return False, "PaymentACK could not be processed. Payment was sent; please manually verify that payment was received."
-        
         return True, paymntack.memo
 
     def serialize(self):
@@ -335,6 +349,56 @@ class PaymentRequest:
     def export_file_ext(cls):
         return 'bip70'
 
+class KSPaymentRequest(PaymentRequest):
+    def __init__(self, data, error=None):
+        super().__init__(data, error)
+
+    def set_metadata(self, metadata):
+        self.metadata = metadata
+
+    def send_payment(self, raw_tx, refund_addr):
+        pay_det = self.details
+        if not self.details.payment_url:
+            return False, "no url"
+        paymnt = pb2.Payment()
+        paymnt.merchant_data = pay_det.merchant_data
+        paymnt.transactions.append(bfh(raw_tx))
+        ref_out = paymnt.refund_to.add()
+        ref_out.script = bfh(transaction.Transaction.pay_script(refund_addr))
+        paymnt.memo = "Paid using Electron Cash"
+        pm = paymnt.SerializeToString()
+        payurl = urllib.parse.urlparse(pay_det.payment_url)
+        try:
+            r = requests.post(payurl.geturl(), data=pm, headers=ACK_HEADERS, verify=ca_path, allow_redirects=False)
+            print(r)
+        except requests.exceptions.RequestException as e:
+            return False, str(e)
+        
+        if r.status_code != 302:
+            # Propagate 'Bad request' (HTTP 400) messages to the user since they
+            # contain valuable information.
+            if r.status_code == 400:
+                return False, (r.reason + ": " + r.content.decode('UTF-8'))
+            # Some other errors might display an entire HTML document.
+            # Hide those and just display the name of the error code.
+            return False, r.reason
+        try:
+            paymntack = pb2.PaymentACK()
+            paymntack.ParseFromString(r.content)
+        except Exception:
+            return False, "PaymentACK could not be processed. Payment was sent; please manually verify that payment was received."
+        print("PaymentACK message received: %s" % paymntack.memo)
+
+        # PUT using token URL
+        try:
+            token_url = r.headers["Location"]
+            r = requests.put(url=token_url, data=self.metadata)
+            if r.status_code != 200:
+                return False, "Failed to put to keyserver; %s" % r.text
+        except Exception:
+            return False, "PaymentACK could not be processed. Payment was sent; please manually verify that payment was received."
+        
+        return True, paymntack.memo
 
 def make_unsigned_request(req):
     from .transaction import Transaction

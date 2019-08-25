@@ -2530,6 +2530,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.create_list_tab(l)
 
     def create_keyserver_tab(self):
+        from lib.keyserver import KSHandler, null_extractor
+        # Create keyserver handler
+        self.ks_handler = KSHandler()
+
         # Upload
         put_groupbox = QGroupBox("Upload")
         
@@ -2589,14 +2593,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
             addr = self._pick_address()
             if addr:
-                ks_url = self._get_keyserver_url()
-                addr = addr.to_full_ui_string()
-                url = "%s/keys/%s" % (ks_url, addr)
-                self.ks_addr_get_e.setText(url)
-            
-                # TODO: Handle 404 error
-                response = requests.get(url=url)
-                addr_metadata = AddressMetadata.FromString(response.content)
+                full_addr = addr.to_full_ui_string()
+                self.ks_addr_get_e.setText(full_addr)
+                extracted = self.ks_handler.uniform_aggregate(full_addr)
+                addr_metadata = extracted.metadata
                 json_metadata = MessageToJson(addr_metadata)
                 self.payload_get_e.setText(json_metadata)
 
@@ -2733,15 +2733,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         raw_addr_meta = addr_metadata.SerializeToString()
         return raw_addr_meta
 
-    def _get_keyserver_url(self):
-        ks_url = "http://35.232.229.28" # TODO: Get from keyserver list
-        return ks_url
-
     _payforput_popup_kill_tab_changed_connection = None
     def payfor_put(self):
         ''' Pay-for-put to keyserver '''
         addr = str(self.ks_addr_put_e.text())
-        ks_url = self._get_keyserver_url()
+        ks_url = self.ks_handler.uniform_sample()
         url = "%s/keys/%s" % (ks_url, addr)
 
         try:
@@ -2761,15 +2757,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def get_ks_pr():
             # Runs in thread
             self.print_error("Keyserver URL", url)
-            pr = paymentrequest.get_payment_request(url, method='PUT', raise_for_status=402)
+            pr = paymentrequest.get_ks_payment_request(url)
             return pr
 
         def on_success(pr):
             # Runs in main thread
             if pr:
                 # Set payment request to handle keyserver PUT
-                pr.keyserver = True
-                pr.metadata = metadata
+                pr.set_metadata(metadata) 
                 if pr.error:
                     # TODO: Fallback to other node?
                     self.print_error("Keyserver ERROR", pr.error)
