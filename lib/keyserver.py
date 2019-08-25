@@ -12,6 +12,10 @@ signalling searching should halt, or throw an error.
 def plain_text_extractor(body: bytes):
     return body.decode('utf8')
 
+def telegram_executor(handle: str):
+    import subprocess
+    print(handle)
+    subprocess.Popen(["telegram-desktop", "--", "https://t.me/" + handle])
 
 class KSHandler:
     '''

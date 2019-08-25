@@ -2530,13 +2530,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.create_list_tab(l)
 
     def create_keyserver_tab(self):
-        from electroncash.keyserver import KSHandler, plain_text_extractor
+        from electroncash.keyserver import KSHandler, plain_text_extractor, telegram_executor
         # Create keyserver handler
         self.ks_handler = KSHandler()
 
         # Add executors
+        # Plain text display
         set_payload_e = lambda x: self.payload_download_e.setText(x)
         self.ks_handler.add_executor("text_utf8", plain_text_extractor, set_payload_e)
+
+        # Telegram executor
+        self.ks_handler.add_executor("telegram", plain_text_extractor, telegram_executor)
 
         # Upload
         upload_groupbox = QGroupBox("Upload")
@@ -2565,56 +2569,103 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         upload_grid.addWidget(description_label, 2, 0)
         self.ks_combobox_upload = QComboBox(self)
         self.ks_combobox_upload.addItem("Plain Text")
-        self.ks_combobox_upload.addItem("TODO OTHER STUFF")
+        self.ks_combobox_upload.addItem("Telegram")
+        self.ks_combobox_upload.addItem("Stealth Addresses")
         description_label.setBuddy(self.ks_combobox_upload)
         upload_grid.addWidget(self.ks_combobox_upload, 2, 1, 1, -1)
 
-        class KSPlainTextForm(QWidget):
+        clear_button = QPushButton(_("&Clear form"))
+
+        upload_button = EnterButton(_("&Upload"), self.payfor_put)
+        upload_grid.addLayout(Buttons(clear_button, upload_button), 4, 1, 1, 3)
+
+        def on_text_changed():
+            # TODO: More validation here. Make sure upload_plain_text_e is not garbage
+            addr_is_some = bool(self.ks_addr_upload_e.text())
+            index = self.ks_combobox_upload.currentIndex()
+            upload_button.setEnabled(addr_is_some and self.stacked_forms.widget(index).is_full())
+
+        def on_clear():
+            self.ks_addr_upload_e.clear()
+            index = self.ks_combobox_upload.currentIndex()
+            self.stacked_forms.widget(index).clear()
+
+        self.ks_addr_upload_e.textChanged.connect(on_text_changed)
+        clear_button.clicked.connect(on_clear)
+        on_text_changed()  # start button off disabled
+
+        class PlainTextForm(QWidget):
             def __init__(self, *args, **kwargs):
-                super(KSPlainTextForm, self).__init__(*args, **kwargs)
+                super(PlainTextForm, self).__init__(*args, **kwargs)
                 plain_text_grid = QGridLayout()
                 msg = _('Plain text to be uploaded.')
                 description_label = HelpLabel(_('&Text'), msg)
                 plain_text_grid.addWidget(description_label, 3, 0)
                 self.upload_plain_text_e = QTextEdit()
+                self.upload_plain_text_e.textChanged.connect(on_text_changed)
                 description_label.setBuddy(self.upload_plain_text_e)
                 plain_text_grid.addWidget(self.upload_plain_text_e, 3, 1, 1, -1)
                 self.setLayout(plain_text_grid)
 
-        class KSStealthAddress(QWidget):
+            def is_full(self):
+                return bool(self.upload_plain_text_e.toPlainText())
+
+            def clear(self):
+                self.upload_plain_text_e.clear()
+
+        class TelegramForm(QWidget):
             def __init__(self, *args, **kwargs):
-                super(KSStealthAddress, self).__init__(*args, **kwargs)
+                super(TelegramForm, self).__init__(*args, **kwargs)
+                plain_text_grid = QGridLayout()
+                msg = _('Telegram handle to be uploaded.')
+                description_label = HelpLabel(_('&Handle'), msg)
+                plain_text_grid.addWidget(description_label, 3, 0)
+                self.upload_telegram_e = QLineEdit()
+                self.upload_telegram_e.textChanged.connect(on_text_changed)
+                description_label.setBuddy(self.upload_telegram_e)
+                plain_text_grid.addWidget(self.upload_telegram_e, 3, 1, 1, -1)
+                self.setLayout(plain_text_grid)
+
+            def is_full(self):
+                return bool(self.upload_telegram_e.text())
+
+            def clear(self):
+                self.upload_telegram_e.clear()
+
+        class StealthAddressForm(QWidget):
+            def __init__(self, *args, **kwargs):
+                super(StealthAddressForm, self).__init__(*args, **kwargs)
                 # TODO
-                        
+
+            def is_full(self):
+                return bool(self.upload_telegram_e.text())
+
+            def clear(self):
+                self.upload_telegram_e.clear()
+
         self.ks_form_groupbox = QGroupBox("Form")
         self.stacked_forms = QStackedWidget()
         form_layout = QVBoxLayout()
         form_layout.addWidget(self.stacked_forms)
-        self.plain_text_form = KSPlainTextForm()
-        self.stealth_addr_form = KSStealthAddress()
+
+        # Init forms
+        self.plain_text_form = PlainTextForm()
         self.stacked_forms.addWidget(self.plain_text_form)
+
+        self.telegram_form = TelegramForm()
+        self.stacked_forms.addWidget(self.telegram_form)
+
+        self.stealth_addr_form = StealthAddressForm()
         self.stacked_forms.addWidget(self.stealth_addr_form)
+
         self.ks_form_groupbox.setLayout(form_layout)
         upload_grid.addWidget(self.ks_form_groupbox, 3, 0, 1, -1)
 
         def switch_form(index: int):
             self.stacked_forms.setCurrentIndex(index)
+            on_text_changed()
             
         self.ks_combobox_upload.currentIndexChanged.connect(switch_form)
-
-        clear_button = QPushButton(_("&Clear form"))
-        upload_button = EnterButton(_("&Upload"), self.payfor_put)
-        upload_grid.addLayout(Buttons(clear_button, upload_button), 4, 1, 1, 3)
-        def on_text_changed():
-            # TODO: More validation here. Make sure upload_plain_text_e is not garbage
-            upload_button.setEnabled(bool(self.ks_addr_upload_e.text() and self.plain_text_form.upload_plain_text_e.toPlainText()))
-        def on_clear():
-            self.ks_addr_upload_e.clear()
-            self.plain_text_form.upload_plain_text_e.clear()
-        clear_button.clicked.connect(on_clear)
-        self.ks_addr_upload_e.textChanged.connect(on_text_changed)
-        self.plain_text_form.upload_plain_text_e.textChanged.connect(on_text_changed)
-        on_text_changed()  # start button off disabled
 
         upload_groupbox.setLayout(upload_grid)
         
@@ -2736,15 +2787,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.payto_e.setText(text)
             self.payto_e.setFocus()
 
-    def _plaintext_metadata(self, addr):
+    def _plaintext_metadata(self, addr, data, type_override="text_utf8"):
         from hashlib import sha256
         from electroncash.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata, Header
 
-        text = self.plain_text_form.upload_plain_text_e.toPlainText().encode('utf8')
+        text = data.encode('utf8')
         addr = Address.from_string(addr)
 
         # Construct Payload
-        header = Header(name="type", value="text_utf8")
+        header = Header(name="type", value=type_override)
         metadata_field = MetadataField(
             headers=[header], metadata=text)
         timestamp = int(time.time())
@@ -2787,11 +2838,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         try:
             # Construct basic metadata from payload text
-            metadata = self._plaintext_metadata(addr)
+            index = self.ks_combobox_upload.currentIndex()
+
+            if index == 0:
+                data = self.plain_text_form.upload_plain_text_e.toPlainText() # TODO: Make this generic
+                metadata = self._plaintext_metadata(addr, data)
+            elif index == 1:
+                data = self.telegram_form.upload_telegram_e.text()
+                metadata = self._plaintext_metadata(addr, data, type_override="telegram")
         except UserCancelled:
             return
         except Exception as e:
-            self.print_error("_plaintext_metadata:", repr(e))
+            self.print_error("metadata construction error:", repr(e))
             self.show_error(str(e))
             return
 
