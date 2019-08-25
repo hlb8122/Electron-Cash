@@ -2530,9 +2530,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.create_list_tab(l)
 
     def create_keyserver_tab(self):
-        from electroncash.keyserver import KSHandler, null_extractor
+        from electroncash.keyserver import KSHandler, plain_text_extractor
         # Create keyserver handler
         self.ks_handler = KSHandler()
+
+        # Add executors
+        set_payload_e = lambda x: self.payload_download_e.setText(x)
+        self.ks_handler.add_executor("text_utf8", plain_text_extractor, set_payload_e)
 
         # Upload
         upload_groupbox = QGroupBox("Upload")
@@ -2561,7 +2565,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         upload_grid.addWidget(description_label, 2, 0)
         self.ks_combobox_upload = QComboBox(self)
         self.ks_combobox_upload.addItem("Plain Text")
-        self.ks_combobox_upload.addItem("Stealth Address")
+        self.ks_combobox_upload.addItem("TODO OTHER STUFF")
         description_label.setBuddy(self.ks_combobox_upload)
         upload_grid.addWidget(self.ks_combobox_upload, 2, 1, 1, -1)
 
@@ -2593,13 +2597,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.ks_form_groupbox.setLayout(form_layout)
         upload_grid.addWidget(self.ks_form_groupbox, 3, 0, 1, -1)
 
-        def switch_form(item: str):
-            if item == "Plain Text":
-                self.stacked_forms.setCurrentIndex(0)
-            elif item == "Stealth Address":
-                self.stacked_forms.setCurrentIndex(1)
+        def switch_form(index: int):
+            self.stacked_forms.setCurrentIndex(index)
             
-        self.ks_combobox_upload.currentTextChanged.connect(switch_form)
+        self.ks_combobox_upload.currentIndexChanged.connect(switch_form)
 
         clear_button = QPushButton(_("&Clear form"))
         upload_button = EnterButton(_("&Upload"), self.payfor_put)
@@ -2633,16 +2634,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if addr:
                 full_addr = addr.to_full_ui_string()
                 self.ks_addr_download_e.setText(full_addr)
-                extracted, errors = self.ks_handler.uniform_aggregate(full_addr)
-                if extracted.is_empty():
+                executor, errors = self.ks_handler.get_exec(full_addr)
+                if executor is None:
                     error_msgs = "Unable to complete requests:\n"
                     for (sample, e) in errors:
                         error_msgs += "%s; %s\n" % (sample, e)
                     self.payload_download_e.setText(error_msgs)
                 else:
-                    addr_metadata = extracted.metadata
-                    json_metadata = MessageToJson(addr_metadata)
-                    self.payload_download_e.setText(json_metadata)
+                    # TODO: Confirmation box
+                    executor()
 
 
         msg = _('Address to downloaded from.  Use the tool button on the right to pick a wallet address.')
@@ -2738,14 +2738,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def _plaintext_metadata(self, addr):
         from hashlib import sha256
-        from electroncash.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata
+        from electroncash.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata, Header
 
         text = self.plain_text_form.upload_plain_text_e.toPlainText().encode('utf8')
         addr = Address.from_string(addr)
 
         # Construct Payload
+        header = Header(name="type", value="text_utf8")
         metadata_field = MetadataField(
-            headers=[], metadata=text)
+            headers=[header], metadata=text)
         timestamp = int(time.time())
         ttl = 3000
         payload = Payload(timestamp=timestamp, ttl=ttl, rows=[metadata_field])
