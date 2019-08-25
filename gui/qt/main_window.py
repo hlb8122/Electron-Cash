@@ -2556,25 +2556,63 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         description_label.setBuddy(self.ks_addr_upload_e)
         upload_grid.addWidget(self.ks_addr_upload_e, 1, 1, 1, -1)
 
-        msg = _('Payload to be uploaded.')
-        description_label = HelpLabel(_('&Payload'), msg)
+        msg = _('Payload scheme to be uploaded.')
+        description_label = HelpLabel(_('&Scheme'), msg)
         upload_grid.addWidget(description_label, 2, 0)
-        self.payload_upload_e = QTextEdit()
-        description_label.setBuddy(self.payload_upload_e)
-        upload_grid.addWidget(self.payload_upload_e, 2, 1, 1, -1)
+        self.ks_combobox_upload = QComboBox(self)
+        self.ks_combobox_upload.addItem("Plain Text")
+        self.ks_combobox_upload.addItem("Stealth Address")
+        description_label.setBuddy(self.ks_combobox_upload)
+        upload_grid.addWidget(self.ks_combobox_upload, 2, 1, 1, -1)
+
+        class KSPlainTextForm(QWidget):
+            def __init__(self, *args, **kwargs):
+                super(KSPlainTextForm, self).__init__(*args, **kwargs)
+                plain_text_grid = QGridLayout()
+                msg = _('Plain text to be uploaded.')
+                description_label = HelpLabel(_('&Text'), msg)
+                plain_text_grid.addWidget(description_label, 3, 0)
+                self.upload_plain_text_e = QTextEdit()
+                description_label.setBuddy(self.upload_plain_text_e)
+                plain_text_grid.addWidget(self.upload_plain_text_e, 3, 1, 1, -1)
+                self.setLayout(plain_text_grid)
+
+        class KSStealthAddress(QWidget):
+            def __init__(self, *args, **kwargs):
+                super(KSStealthAddress, self).__init__(*args, **kwargs)
+                # TODO
+                        
+        self.ks_form_groupbox = QGroupBox("Form")
+        self.stacked_forms = QStackedWidget()
+        form_layout = QVBoxLayout()
+        form_layout.addWidget(self.stacked_forms)
+        self.plain_text_form = KSPlainTextForm()
+        self.stealth_addr_form = KSStealthAddress()
+        self.stacked_forms.addWidget(self.plain_text_form)
+        self.stacked_forms.addWidget(self.stealth_addr_form)
+        self.ks_form_groupbox.setLayout(form_layout)
+        upload_grid.addWidget(self.ks_form_groupbox, 3, 0, 1, -1)
+
+        def switch_form(item: str):
+            if item == "Plain Text":
+                self.stacked_forms.setCurrentIndex(0)
+            elif item == "Stealth Address":
+                self.stacked_forms.setCurrentIndex(1)
+            
+        self.ks_combobox_upload.currentTextChanged.connect(switch_form)
 
         clear_button = QPushButton(_("&Clear form"))
         upload_button = EnterButton(_("&Upload"), self.payfor_put)
-        upload_grid.addLayout(Buttons(clear_button, upload_button), 3, 1, 1, 3)
+        upload_grid.addLayout(Buttons(clear_button, upload_button), 4, 1, 1, 3)
         def on_text_changed():
-            # TODO: More validation here. Make sure payload_upload_e is not garbage
-            upload_button.setEnabled(bool(self.ks_addr_upload_e.text() and self.payload_upload_e.toPlainText()))
+            # TODO: More validation here. Make sure upload_plain_text_e is not garbage
+            upload_button.setEnabled(bool(self.ks_addr_upload_e.text() and self.plain_text_form.upload_plain_text_e.toPlainText()))
         def on_clear():
             self.ks_addr_upload_e.clear()
-            self.payload_upload_e.clear()
+            self.plain_text_form.upload_plain_text_e.clear()
         clear_button.clicked.connect(on_clear)
         self.ks_addr_upload_e.textChanged.connect(on_text_changed)
-        self.payload_upload_e.textChanged.connect(on_text_changed)
+        self.plain_text_form.upload_plain_text_e.textChanged.connect(on_text_changed)
         on_text_changed()  # start button off disabled
 
         upload_groupbox.setLayout(upload_grid)
@@ -2698,11 +2736,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.payto_e.setText(text)
             self.payto_e.setFocus()
 
-    def _basic_metadata(self, addr):
+    def _plaintext_metadata(self, addr):
         from hashlib import sha256
         from electroncash.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata
 
-        text = self.payload_put_e.toPlainText().encode('utf8')
+        text = self.plain_text_form.upload_plain_text_e.toPlainText().encode('utf8')
         addr = Address.from_string(addr)
 
         # Construct Payload
@@ -2742,17 +2780,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     _payforput_popup_kill_tab_changed_connection = None
     def payfor_put(self):
         ''' Pay-for-put to keyserver '''
-        addr = str(self.ks_addr_put_e.text())
+        addr = str(self.ks_addr_upload_e.text())
         ks_url = self.ks_handler.uniform_sample()
         url = "%s/keys/%s" % (ks_url, addr)
 
         try:
             # Construct basic metadata from payload text
-            metadata = self._basic_metadata(addr)
+            metadata = self._plaintext_metadata(addr)
         except UserCancelled:
             return
         except Exception as e:
-            self.print_error("_basic_metadata:", repr(e))
+            self.print_error("_plaintext_metadata:", repr(e))
             self.show_error(str(e))
             return
 
