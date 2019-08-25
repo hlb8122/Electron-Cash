@@ -54,6 +54,8 @@ class KSHandler:
     def get_metadata(ks_url: str, addr: str):
         url = "%s/keys/%s" % (ks_url, addr)
         response = requests.get(url=url)
+        if response.status_code != 200:
+            raise Exception("%s - %s" % (response.status_code, response.text))
         addr_metadata = AddressMetadata.FromString(response.content)
         return addr_metadata
 
@@ -65,12 +67,18 @@ class KSHandler:
             timestamp = 0
             confidence = 0
 
+            def is_empty(self):
+                return self.metadata is None
+
         best = Extracted()
+        errors = []
 
         sample_size = min([len(ks_urls), sample_size])
         sample_set = random.sample(ks_urls, sample_size)
 
         for sample in sample_set:
+            found = False
+
             try:
                 new_metadata = KSHandler.get_metadata(sample, addr)
                 new_timestamp = new_metadata.payload.timestamp
@@ -93,13 +101,12 @@ class KSHandler:
                         best.confidence = 0
 
             except Exception as e:
-                print("Unable to complete request with %s at address %s; %s" %
-                      (sample, addr, e))
+                errors.append((sample, e))
 
             if found:
                 break
 
-        return best
+        return best, errors
 
     def uniform_aggregate(self, addr: str, extractor = null_extractor, sample_size: int = None):
         if sample_size is None:

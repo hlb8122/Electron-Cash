@@ -2595,10 +2595,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if addr:
                 full_addr = addr.to_full_ui_string()
                 self.ks_addr_get_e.setText(full_addr)
-                extracted = self.ks_handler.uniform_aggregate(full_addr)
-                addr_metadata = extracted.metadata
-                json_metadata = MessageToJson(addr_metadata)
-                self.payload_get_e.setText(json_metadata)
+                extracted, errors = self.ks_handler.uniform_aggregate(full_addr)
+                if extracted.is_empty():
+                    error_msgs = "Unable to complete requests:\n"
+                    for (sample, e) in errors:
+                        error_msgs += "%s; %s\n" % (sample, e)
+                    self.payload_get_e.setText(error_msgs)
+                else:
+                    addr_metadata = extracted.metadata
+                    json_metadata = MessageToJson(addr_metadata)
+                    self.payload_get_e.setText(json_metadata)
 
 
         msg = _('Address to downloaded from.  Use the tool button on the right to pick a wallet address.')
