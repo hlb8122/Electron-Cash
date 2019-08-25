@@ -108,7 +108,7 @@ class KSHandler:
 
         return best, errors
 
-    def uniform_aggregate(self, addr: str, extractor = null_extractor, sample_size: int = None):
+    def uniform_aggregate(self, addr: str, extractor=null_extractor, sample_size: int = None):
         if sample_size is None:
             sample_size = self.default_sample_size
         return KSHandler._uniform_aggregate(self.ks_urls, addr, extractor, sample_size=sample_size)
