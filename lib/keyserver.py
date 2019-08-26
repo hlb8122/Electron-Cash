@@ -35,10 +35,6 @@ def plain_text_metadata(addr, data:str, signer, ttl:int=3000, type_override="tex
 def plain_text_extractor(body: bytes):
     return body.decode('utf8')
 
-def telegram_executor(handle: str):
-    import subprocess
-    subprocess.Popen(["telegram-desktop", "--", "https://t.me/" + handle])
-
 class KSHandler:
     '''
     KSHandler handles operations relating to the management of keyservers

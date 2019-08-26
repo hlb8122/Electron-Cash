@@ -1,7 +1,12 @@
 from electroncash.keyserver import plain_text_metadata
 from PyQt5.QtWidgets import *
+from PyQt5.QtGui import QDesktopServices
+from PyQt5.QtCore import QUrl
 from electroncash.i18n import _
 from .util import *
+
+def telegram_executor(handle: str):
+    QDesktopServices.openUrl(QUrl("https://t.me/" + handle))
 
 
 class KeyserverForm:

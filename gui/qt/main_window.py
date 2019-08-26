@@ -2530,7 +2530,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.create_list_tab(l)
 
     def create_keyserver_tab(self):
-        from electroncash.keyserver import KSHandler, plain_text_extractor, telegram_executor
+        from electroncash.keyserver import KSHandler, plain_text_extractor
+        from .ks_gui import PlainTextForm, TelegramForm, StealthAddressForm, telegram_executor
         # Create keyserver handler
         self.ks_handler = KSHandler()
 
@@ -2594,68 +2595,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         clear_button.clicked.connect(on_clear)
         on_text_changed()  # start button off disabled
 
-        class PlainTextForm(QWidget):
-            def __init__(self, *args, **kwargs):
-                super(PlainTextForm, self).__init__(*args, **kwargs)
-                plain_text_grid = QGridLayout()
-                msg = _('Plain text to be uploaded.')
-                description_label = HelpLabel(_('&Text'), msg)
-                plain_text_grid.addWidget(description_label, 3, 0)
-                self.upload_plain_text_e = QTextEdit()
-                self.upload_plain_text_e.textChanged.connect(on_text_changed)
-                description_label.setBuddy(self.upload_plain_text_e)
-                plain_text_grid.addWidget(self.upload_plain_text_e, 3, 1, 1, -1)
-                self.setLayout(plain_text_grid)
-
-            def is_full(self):
-                return bool(self.upload_plain_text_e.toPlainText())
-
-            def clear(self):
-                self.upload_plain_text_e.clear()
-
-        class TelegramForm(QWidget):
-            def __init__(self, *args, **kwargs):
-                super(TelegramForm, self).__init__(*args, **kwargs)
-                plain_text_grid = QGridLayout()
-                msg = _('Telegram handle to be uploaded.')
-                description_label = HelpLabel(_('&Handle'), msg)
-                plain_text_grid.addWidget(description_label, 3, 0)
-                self.upload_telegram_e = QLineEdit()
-                self.upload_telegram_e.textChanged.connect(on_text_changed)
-                description_label.setBuddy(self.upload_telegram_e)
-                plain_text_grid.addWidget(self.upload_telegram_e, 3, 1, 1, -1)
-                self.setLayout(plain_text_grid)
-
-            def is_full(self):
-                return bool(self.upload_telegram_e.text())
-
-            def clear(self):
-                self.upload_telegram_e.clear()
-
-        class StealthAddressForm(QWidget):
-            def __init__(self, *args, **kwargs):
-                super(StealthAddressForm, self).__init__(*args, **kwargs)
-                # TODO
-
-            def is_full(self):
-                return bool(self.upload_telegram_e.text())
-
-            def clear(self):
-                self.upload_telegram_e.clear()
-
         self.ks_form_groupbox = QGroupBox("Form")
         self.stacked_forms = QStackedWidget()
         form_layout = QVBoxLayout()
         form_layout.addWidget(self.stacked_forms)
 
         # Init forms
-        self.plain_text_form = PlainTextForm()
+        # Plain text form
+        self.plain_text_form = PlainTextForm(on_text_changed)
+        self.plain_text_form.set_signer(self._sign_metadata_digest)
         self.stacked_forms.addWidget(self.plain_text_form)
 
-        self.telegram_form = TelegramForm()
+        self.telegram_form = TelegramForm(on_text_changed)
+        self.telegram_form.set_signer(self._sign_metadata_digest)
         self.stacked_forms.addWidget(self.telegram_form)
 
-        self.stealth_addr_form = StealthAddressForm()
+        self.stealth_addr_form = StealthAddressForm(on_text_changed)
+        self.stealth_addr_form.set_signer(self._sign_metadata_digest)
         self.stacked_forms.addWidget(self.stealth_addr_form)
 
         self.ks_form_groupbox.setLayout(form_layout)
@@ -2787,21 +2743,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.payto_e.setText(text)
             self.payto_e.setFocus()
 
-    def _plaintext_metadata(self, addr, data, type_override="text_utf8"):
-        from hashlib import sha256
-        from electroncash.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata, Header
-
-        text = data.encode('utf8')
-        addr = Address.from_string(addr)
-
-        # Construct Payload
-        header = Header(name="type", value=type_override)
-        metadata_field = MetadataField(
-            headers=[header], metadata=text)
-        timestamp = int(time.time())
-        ttl = 3000
-        payload = Payload(timestamp=timestamp, ttl=ttl, rows=[metadata_field])
-
+    def _sign_metadata_digest(self, addr: str, digest: bytes):
         password = None
         while self.wallet.has_password():
             # grab password
@@ -2816,18 +2758,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.show_error(_("Invalid password, try again"))
                 continue
 
-        # Sign
-        raw_payload = payload.SerializeToString()
-        digest = sha256(sha256(raw_payload).digest()).digest()
+        addr = Address.from_string(addr)
         signature = self.wallet.sign_digest(addr, digest, password)
         public_key = bytes.fromhex(self.wallet.get_public_key(addr))
         self.print_error(public_key)
+        return public_key, signature
 
-        # Address metadata
-        addr_metadata = AddressMetadata(
-            pub_key=public_key, payload=payload, scheme=1, signature=signature)
-        raw_addr_meta = addr_metadata.SerializeToString()
-        return raw_addr_meta
 
     _payforput_popup_kill_tab_changed_connection = None
     def payfor_put(self):
@@ -2839,13 +2775,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             # Construct basic metadata from payload text
             index = self.ks_combobox_upload.currentIndex()
-
-            if index == 0:
-                data = self.plain_text_form.upload_plain_text_e.toPlainText() # TODO: Make this generic
-                metadata = self._plaintext_metadata(addr, data)
-            elif index == 1:
-                data = self.telegram_form.upload_telegram_e.text()
-                metadata = self._plaintext_metadata(addr, data, type_override="telegram")
+            metadata = self.stacked_forms.widget(index).get_metadata(addr)
         except UserCancelled:
             return
         except Exception as e:
