@@ -1,43 +1,11 @@
 import random
 import requests
-from electroncash.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata, Header
-import base64
-import time
+from .addressmetadata_pb2 import MetadataField, Payload, AddressMetadata, Header
 
-'''
-Parsers extract data from the payload returning a value and a flag 
-signalling searching should halt, or throw an error.
-'''
-
-def plain_text_metadata(addr, data:str, signer, ttl:int=3000, type_override="text_utf8"):
-    from hashlib import sha256
-        
-    text = data.encode('utf8')
-
-    # Construct Payload
-    header = Header(name="type", value=type_override)
-    metadata_field = MetadataField(
-        headers=[header], metadata=text)
-    timestamp = int(time.time())
-    payload = Payload(timestamp=timestamp, ttl=ttl, rows=[metadata_field])
-
-    # Sign
-    raw_payload = payload.SerializeToString()
-    digest = sha256(sha256(raw_payload).digest()).digest()
-    public_key, signature = signer(addr, digest)
-
-    # Address metadata
-    addr_metadata = AddressMetadata(
-        pub_key=public_key, payload=payload, scheme=1, signature=signature)
-    raw_addr_meta = addr_metadata.SerializeToString()
-    return raw_addr_meta
-
-def plain_text_extractor(body: bytes):
-    return body.decode('utf8')
 
 class KSHandler:
     '''
-    KSHandler handles operations relating to the management of keyservers
+    KSHandler deals with operations relating to the management of keyservers
     and GET and PUT requests
     '''
 
@@ -52,7 +20,7 @@ class KSHandler:
         self.payload_types = dict()
 
         if ks_urls is None:
-            self.ks_urls = KSHandler.trusted_ks_urls
+            self.ks_urls = self.trusted_ks_urls
         else:
             self.ks_urls = ks_urls
 
@@ -73,7 +41,7 @@ class KSHandler:
         return True
 
     @staticmethod
-    def get_metadata(ks_url: str, addr: str):
+    def construct_metadata(ks_url: str, addr: str):
         url = "%s/keys/%s" % (ks_url, addr)
         response = requests.get(url=url)
         if response.status_code != 200:
@@ -97,7 +65,7 @@ class KSHandler:
 
         for sample in sample_set:
             try:
-                new_metadata = KSHandler.get_metadata(sample, addr)
+                new_metadata = KSHandler.construct_metadata(sample, addr)
                 new_timestamp = new_metadata.payload.timestamp
 
                 if new_timestamp < best.timestamp:

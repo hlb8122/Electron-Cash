@@ -2530,7 +2530,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.create_list_tab(l)
 
     def create_keyserver_tab(self):
-        from electroncash.keyserver import KSHandler, plain_text_extractor
+        from electroncash.keyserver.handler import KSHandler
+        from electroncash.keyserver.plain_text import plain_text_extractor
         from .ks_gui import PlainTextForm, TelegramForm, StealthAddressForm, telegram_executor
         # Create keyserver handler
         self.ks_handler = KSHandler()
@@ -2541,7 +2542,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.ks_handler.add_executor("text_utf8", plain_text_extractor, set_payload_e)
 
         # Telegram executor
-        self.ks_handler.add_executor("telegram", plain_text_extractor, telegram_executor)
+        def telemgram_executor_w_msg(handle: str):
+            telegram_executor(handle)
+            self.payload_download_e.setText("Directing to telegram group " + handle)
+        self.ks_handler.add_executor("telegram", plain_text_extractor, telemgram_executor_w_msg)
 
         # Upload
         upload_groupbox = QGroupBox("Upload")
@@ -2635,7 +2639,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def pick_address_download():
             import requests
             from google.protobuf.json_format import MessageToJson 
-            from electroncash.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata
+            from electroncash.keyserver.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata
 
             addr = self._pick_address()
             if addr:
@@ -2775,7 +2779,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             # Construct basic metadata from payload text
             index = self.ks_combobox_upload.currentIndex()
-            metadata = self.stacked_forms.widget(index).get_metadata(addr)
+            metadata = self.stacked_forms.widget(index).construct_metadata(addr)
         except UserCancelled:
             return
         except Exception as e:

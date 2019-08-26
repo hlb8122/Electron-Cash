@@ -1,15 +1,16 @@
-from electroncash.keyserver import plain_text_metadata
+from electroncash.keyserver.plain_text import plain_text_metadata
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtCore import QUrl
 from electroncash.i18n import _
 from .util import *
 
+
 def telegram_executor(handle: str):
     QDesktopServices.openUrl(QUrl("https://t.me/" + handle))
 
 
-class KeyserverForm:
+class KeyserverForm(QWidget):
     def is_full(self):
         raise NotImplementedError
 
@@ -26,15 +27,16 @@ class KeyserverForm:
         raise NotImplementedError
 
     def set_signer(self, signer):
-        self.signer = signer
+        self.signer = signer        
 
-    def get_metadata(self, addr):
+    def construct_metadata(self, addr):
         data = self._get_data()
-        metadata = self._construct_metadata(addr, data, self.signer, ttl=self._get_ttl())
+        metadata = self._construct_metadata(
+            addr, data, self.signer, ttl=self._get_ttl())
         return metadata
 
 
-class PlainTextForm(QWidget, KeyserverForm):
+class PlainTextForm(KeyserverForm):
     def __init__(self, on_text_changed, *args, **kwargs):
         super(PlainTextForm, self).__init__(*args, **kwargs)
         plain_text_grid = QGridLayout()
@@ -63,7 +65,7 @@ class PlainTextForm(QWidget, KeyserverForm):
         return plain_text_metadata(addr, data, signer, ttl)
 
 
-class TelegramForm(QWidget, KeyserverForm):
+class TelegramForm( KeyserverForm):
     def __init__(self, on_text_changed, *args, **kwargs):
         super(TelegramForm, self).__init__(*args, **kwargs)
         plain_text_grid = QGridLayout()
@@ -93,7 +95,7 @@ class TelegramForm(QWidget, KeyserverForm):
 
 
 # TODO
-class StealthAddressForm(QWidget, KeyserverForm):
+class StealthAddressForm(KeyserverForm):
     def __init__(self, on_text_changed, *args, **kwargs):
         super(StealthAddressForm, self).__init__(*args, **kwargs)
 
