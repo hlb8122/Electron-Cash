@@ -1,6 +1,7 @@
 import random
 import requests
 from electroncash.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata
+import base64
 
 '''
 Parsers extract data from the payload returning a value and a flag 
@@ -8,14 +9,13 @@ signalling searching should halt, or throw an error.
 '''
 
 
-def null_extractor(payload: Payload):
-    return None, False
+def plain_text_extractor(body: bytes):
+    return body.decode('utf8')
 
-
-def peer_extractor(payload: Payload):
-    # TODO
-    return None, False
-
+def telegram_executor(handle: str):
+    import subprocess
+    print(handle)
+    subprocess.Popen(["telegram-desktop", "--", "https://t.me/" + handle])
 
 class KSHandler:
     '''
@@ -31,11 +31,15 @@ class KSHandler:
 
     def __init__(self, ks_urls: list = None, default_sample_size: int = 6):
         self.default_sample_size = default_sample_size
+        self.payload_types = dict()
 
         if ks_urls is None:
             self.ks_urls = KSHandler.trusted_ks_urls
         else:
             self.ks_urls = ks_urls
+
+    def add_executor(self, name: str, extractor, executor):
+        self.payload_types[name] = (extractor, executor)
 
     @staticmethod
     def fetch_from_trusted(sample_size: int = 6):
@@ -60,15 +64,12 @@ class KSHandler:
         return addr_metadata
 
     @staticmethod
-    def _uniform_aggregate(ks_urls: list, addr: str, extractor, sample_size):
+    def _uniform_aggregate(ks_urls: list, addr: str, sample_size: int):
         class Extracted:
+            sample = None
             metadata = None
-            result = None
             timestamp = 0
             confidence = 0
-
-            def is_empty(self):
-                return self.metadata is None
 
         best = Extracted()
         errors = []
@@ -77,12 +78,9 @@ class KSHandler:
         sample_set = random.sample(ks_urls, sample_size)
 
         for sample in sample_set:
-            found = False
-
             try:
                 new_metadata = KSHandler.get_metadata(sample, addr)
                 new_timestamp = new_metadata.payload.timestamp
-                result, found = extractor(new_metadata)
 
                 if new_timestamp < best.timestamp:
                     raise Exception("Older timestamp")
@@ -92,26 +90,72 @@ class KSHandler:
                         if new_timestamp > best.timestamp:
                             best.timestamp = new_timestamp
                             best.confidence = 0
+                            best.sample = sample
                         else:
                             best.confidence += 1
                     else:
                         best.metadata = new_metadata
-                        best.result = result
                         best.timestamp = new_timestamp
                         best.confidence = 0
+                        best.sample = sample
 
             except Exception as e:
                 errors.append((sample, e))
 
-            if found:
-                break
+        # This is safe because it'll raise earlier if len is 0
+        best.confidence = best.confidence / len(ks_urls)
 
         return best, errors
 
-    def uniform_aggregate(self, addr: str, extractor = null_extractor, sample_size: int = None):
+    def uniform_aggregate(self, addr: str, sample_size: int = None):
         if sample_size is None:
             sample_size = self.default_sample_size
-        return KSHandler._uniform_aggregate(self.ks_urls, addr, extractor, sample_size=sample_size)
+        return KSHandler._uniform_aggregate(self.ks_urls, addr, sample_size=sample_size)
 
     def uniform_sample(self):
         return random.choice(self.ks_urls)
+
+    def get_data(self, addr, sample_size: int = None):
+        aggregate, errors = self.uniform_aggregate(addr)
+
+        if aggregate is None:
+            return None, errors
+
+        headers = {
+            header.name: header.value for header in aggregate.metadata.payload.rows[0].headers}
+        extractor, _ = self.payload_types[headers["type"]]
+
+        extracted = None
+        try:
+            # TODO: Don't ignore other rows
+            body = aggregate.metadata.payload.rows[0].metadata
+            extracted = extractor(body)
+        except Exception as e:
+            errors.append((aggregate.sample, e))
+
+        return extracted, errors
+
+    def get_exec(self, addr, sample_size: int = None):
+        aggregate, errors = self.uniform_aggregate(addr)
+
+        if aggregate.metadata is None:
+            return None, errors
+
+        headers = {
+            header.name: header.value for header in aggregate.metadata.payload.rows[0].headers}
+        extractor, executor = self.payload_types[headers["type"]]
+
+        extracted = None
+        try:
+            # TODO: Don't ignore other rows
+            body = aggregate.metadata.payload.rows[0].metadata
+            extracted = extractor(body)
+        except Exception as e:
+            errors.append((aggregate.sample, e))
+
+        if extracted is None:
+            return None, errors
+
+        def execution(): return executor(extracted)
+
+        return execution, errors

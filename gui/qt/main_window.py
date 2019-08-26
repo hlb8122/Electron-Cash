@@ -2530,63 +2530,153 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.create_list_tab(l)
 
     def create_keyserver_tab(self):
-        from lib.keyserver import KSHandler, null_extractor
+        from electroncash.keyserver import KSHandler, plain_text_extractor, telegram_executor
         # Create keyserver handler
         self.ks_handler = KSHandler()
 
+        # Add executors
+        # Plain text display
+        set_payload_e = lambda x: self.payload_download_e.setText(x)
+        self.ks_handler.add_executor("text_utf8", plain_text_extractor, set_payload_e)
+
+        # Telegram executor
+        self.ks_handler.add_executor("telegram", plain_text_extractor, telegram_executor)
+
         # Upload
-        put_groupbox = QGroupBox("Upload")
+        upload_groupbox = QGroupBox("Upload")
         
-        put_grid = QGridLayout()
-        put_grid.setSpacing(8)
-        put_grid.setColumnStretch(3, 1)
+        upload_grid = QGridLayout()
+        upload_grid.setSpacing(8)
+        upload_grid.setColumnStretch(3, 1)
 
         def pick_address():
             addr = self._pick_address()
             if addr:
-                self.ks_addr_put_e.setText(addr.to_full_ui_string())
+                self.ks_addr_upload_e.setText(addr.to_full_ui_string())
 
         msg = _('Address to uploaded to.  Use the tool button on the right to pick a wallet address.')
         description_label = HelpLabel(_('&Address'), msg)
-        put_grid.addWidget(description_label, 1, 0)
-        self.ks_addr_put_e = ButtonsLineEdit()
-        self.ks_addr_put_e.setReadOnly(True)
-        self.ks_addr_put_e.setPlaceholderText(_("Specify a wallet address"))
-        self.ks_addr_put_e.addButton(":icons/tab_addresses.png", on_click=pick_address, tooltip=_("Pick an address from your wallet"))
-        description_label.setBuddy(self.ks_addr_put_e)
-        put_grid.addWidget(self.ks_addr_put_e, 1, 1, 1, -1)
+        upload_grid.addWidget(description_label, 1, 0)
+        self.ks_addr_upload_e = ButtonsLineEdit()
+        self.ks_addr_upload_e.setReadOnly(True)
+        self.ks_addr_upload_e.setPlaceholderText(_("Specify a wallet address"))
+        self.ks_addr_upload_e.addButton(":icons/tab_addresses.png", on_click=pick_address, tooltip=_("Pick an address from your wallet"))
+        description_label.setBuddy(self.ks_addr_upload_e)
+        upload_grid.addWidget(self.ks_addr_upload_e, 1, 1, 1, -1)
 
-        msg = _('Payload to be uploaded.')
-        description_label = HelpLabel(_('&Payload'), msg)
-        put_grid.addWidget(description_label, 2, 0)
-        self.payload_put_e = QTextEdit()
-        description_label.setBuddy(self.payload_put_e)
-        put_grid.addWidget(self.payload_put_e, 2, 1, 1, -1)
+        msg = _('Payload scheme to be uploaded.')
+        description_label = HelpLabel(_('&Scheme'), msg)
+        upload_grid.addWidget(description_label, 2, 0)
+        self.ks_combobox_upload = QComboBox(self)
+        self.ks_combobox_upload.addItem("Plain Text")
+        self.ks_combobox_upload.addItem("Telegram")
+        self.ks_combobox_upload.addItem("Stealth Addresses")
+        description_label.setBuddy(self.ks_combobox_upload)
+        upload_grid.addWidget(self.ks_combobox_upload, 2, 1, 1, -1)
 
         clear_button = QPushButton(_("&Clear form"))
-        put_button = EnterButton(_("&Put Payload"), self.payfor_put)
-        put_grid.addLayout(Buttons(clear_button, put_button), 3, 1, 1, 3)
+
+        upload_button = EnterButton(_("&Upload"), self.payfor_put)
+        upload_grid.addLayout(Buttons(clear_button, upload_button), 4, 1, 1, 3)
+
         def on_text_changed():
-            # TODO: More validation here. Make sure payload_put_e is not garbage
-            put_button.setEnabled(bool(self.ks_addr_put_e.text() and self.payload_put_e.toPlainText()))
+            # TODO: More validation here. Make sure upload_plain_text_e is not garbage
+            addr_is_some = bool(self.ks_addr_upload_e.text())
+            index = self.ks_combobox_upload.currentIndex()
+            upload_button.setEnabled(addr_is_some and self.stacked_forms.widget(index).is_full())
+
         def on_clear():
-            self.ks_addr_put_e.clear()
-            self.payload_put_e.clear()
+            self.ks_addr_upload_e.clear()
+            index = self.ks_combobox_upload.currentIndex()
+            self.stacked_forms.widget(index).clear()
+
+        self.ks_addr_upload_e.textChanged.connect(on_text_changed)
         clear_button.clicked.connect(on_clear)
-        self.ks_addr_put_e.textChanged.connect(on_text_changed)
-        self.payload_put_e.textChanged.connect(on_text_changed)
         on_text_changed()  # start button off disabled
 
-        put_groupbox.setLayout(put_grid)
+        class PlainTextForm(QWidget):
+            def __init__(self, *args, **kwargs):
+                super(PlainTextForm, self).__init__(*args, **kwargs)
+                plain_text_grid = QGridLayout()
+                msg = _('Plain text to be uploaded.')
+                description_label = HelpLabel(_('&Text'), msg)
+                plain_text_grid.addWidget(description_label, 3, 0)
+                self.upload_plain_text_e = QTextEdit()
+                self.upload_plain_text_e.textChanged.connect(on_text_changed)
+                description_label.setBuddy(self.upload_plain_text_e)
+                plain_text_grid.addWidget(self.upload_plain_text_e, 3, 1, 1, -1)
+                self.setLayout(plain_text_grid)
+
+            def is_full(self):
+                return bool(self.upload_plain_text_e.toPlainText())
+
+            def clear(self):
+                self.upload_plain_text_e.clear()
+
+        class TelegramForm(QWidget):
+            def __init__(self, *args, **kwargs):
+                super(TelegramForm, self).__init__(*args, **kwargs)
+                plain_text_grid = QGridLayout()
+                msg = _('Telegram handle to be uploaded.')
+                description_label = HelpLabel(_('&Handle'), msg)
+                plain_text_grid.addWidget(description_label, 3, 0)
+                self.upload_telegram_e = QLineEdit()
+                self.upload_telegram_e.textChanged.connect(on_text_changed)
+                description_label.setBuddy(self.upload_telegram_e)
+                plain_text_grid.addWidget(self.upload_telegram_e, 3, 1, 1, -1)
+                self.setLayout(plain_text_grid)
+
+            def is_full(self):
+                return bool(self.upload_telegram_e.text())
+
+            def clear(self):
+                self.upload_telegram_e.clear()
+
+        class StealthAddressForm(QWidget):
+            def __init__(self, *args, **kwargs):
+                super(StealthAddressForm, self).__init__(*args, **kwargs)
+                # TODO
+
+            def is_full(self):
+                return bool(self.upload_telegram_e.text())
+
+            def clear(self):
+                self.upload_telegram_e.clear()
+
+        self.ks_form_groupbox = QGroupBox("Form")
+        self.stacked_forms = QStackedWidget()
+        form_layout = QVBoxLayout()
+        form_layout.addWidget(self.stacked_forms)
+
+        # Init forms
+        self.plain_text_form = PlainTextForm()
+        self.stacked_forms.addWidget(self.plain_text_form)
+
+        self.telegram_form = TelegramForm()
+        self.stacked_forms.addWidget(self.telegram_form)
+
+        self.stealth_addr_form = StealthAddressForm()
+        self.stacked_forms.addWidget(self.stealth_addr_form)
+
+        self.ks_form_groupbox.setLayout(form_layout)
+        upload_grid.addWidget(self.ks_form_groupbox, 3, 0, 1, -1)
+
+        def switch_form(index: int):
+            self.stacked_forms.setCurrentIndex(index)
+            on_text_changed()
+            
+        self.ks_combobox_upload.currentIndexChanged.connect(switch_form)
+
+        upload_groupbox.setLayout(upload_grid)
         
         # Download
-        get_groupbox = QGroupBox("Download")
+        download_groupbox = QGroupBox("Download")
 
-        get_grid = QGridLayout()
-        get_grid.setSpacing(8)
-        get_grid.setColumnStretch(3, 1)
+        download_grid = QGridLayout()
+        download_grid.setSpacing(8)
+        download_grid.setColumnStretch(3, 1)
 
-        def pick_address_get():
+        def pick_address_download():
             import requests
             from google.protobuf.json_format import MessageToJson 
             from electroncash.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata
@@ -2594,43 +2684,42 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             addr = self._pick_address()
             if addr:
                 full_addr = addr.to_full_ui_string()
-                self.ks_addr_get_e.setText(full_addr)
-                extracted, errors = self.ks_handler.uniform_aggregate(full_addr)
-                if extracted.is_empty():
+                self.ks_addr_download_e.setText(full_addr)
+                executor, errors = self.ks_handler.get_exec(full_addr)
+                if executor is None:
                     error_msgs = "Unable to complete requests:\n"
                     for (sample, e) in errors:
                         error_msgs += "%s; %s\n" % (sample, e)
-                    self.payload_get_e.setText(error_msgs)
+                    self.payload_download_e.setText(error_msgs)
                 else:
-                    addr_metadata = extracted.metadata
-                    json_metadata = MessageToJson(addr_metadata)
-                    self.payload_get_e.setText(json_metadata)
+                    # TODO: Confirmation box
+                    executor()
 
 
         msg = _('Address to downloaded from.  Use the tool button on the right to pick a wallet address.')
         description_label = HelpLabel(_('&Address'), msg)
-        get_grid.addWidget(description_label, 1, 0)
-        self.ks_addr_get_e = ButtonsLineEdit()
-        self.ks_addr_get_e.setReadOnly(True)
-        self.ks_addr_get_e.setPlaceholderText(_("Specify a wallet address"))
-        self.ks_addr_get_e.addButton(":icons/tab_addresses.png", on_click=pick_address_get, tooltip=_("Pick an address from your wallet"))
-        description_label.setBuddy(self.ks_addr_get_e)
-        get_grid.addWidget(self.ks_addr_get_e, 1, 1, 1, -1)
+        download_grid.addWidget(description_label, 1, 0)
+        self.ks_addr_download_e = ButtonsLineEdit()
+        self.ks_addr_download_e.setReadOnly(True)
+        self.ks_addr_download_e.setPlaceholderText(_("Specify a wallet address"))
+        self.ks_addr_download_e.addButton(":icons/tab_addresses.png", on_click=pick_address_download, tooltip=_("Pick an address from your wallet"))
+        description_label.setBuddy(self.ks_addr_download_e)
+        download_grid.addWidget(self.ks_addr_download_e, 1, 1, 1, -1)
 
         msg = _('Downloaded Payload.')
         description_label = HelpLabel(_('&Payload'), msg)
-        get_grid.addWidget(description_label, 2, 0)
-        self.payload_get_e = QTextEdit()
-        self.payload_get_e.setReadOnly(True)
-        description_label.setBuddy(self.payload_get_e)
-        get_grid.addWidget(self.payload_get_e, 2, 1, 1, -1)
+        download_grid.addWidget(description_label, 2, 0)
+        self.payload_download_e = QTextEdit()
+        self.payload_download_e.setReadOnly(True)
+        description_label.setBuddy(self.payload_download_e)
+        download_grid.addWidget(self.payload_download_e, 2, 1, 1, -1)
 
-        get_groupbox.setLayout(get_grid)
+        download_groupbox.setLayout(download_grid)
 
         # Compose
         vbox0 = QVBoxLayout()
-        vbox0.addWidget(put_groupbox)
-        vbox0.addWidget(get_groupbox)
+        vbox0.addWidget(upload_groupbox)
+        vbox0.addWidget(download_groupbox)
         hbox = QHBoxLayout()
         hbox.addLayout(vbox0)
 
@@ -2698,16 +2787,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.payto_e.setText(text)
             self.payto_e.setFocus()
 
-    def _basic_metadata(self, addr):
+    def _plaintext_metadata(self, addr, data, type_override="text_utf8"):
         from hashlib import sha256
-        from electroncash.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata
+        from electroncash.addressmetadata_pb2 import MetadataField, Payload, AddressMetadata, Header
 
-        text = self.payload_put_e.toPlainText().encode('utf8')
+        text = data.encode('utf8')
         addr = Address.from_string(addr)
 
         # Construct Payload
+        header = Header(name="type", value=type_override)
         metadata_field = MetadataField(
-            headers=[], metadata=text)
+            headers=[header], metadata=text)
         timestamp = int(time.time())
         ttl = 3000
         payload = Payload(timestamp=timestamp, ttl=ttl, rows=[metadata_field])
@@ -2742,17 +2832,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     _payforput_popup_kill_tab_changed_connection = None
     def payfor_put(self):
         ''' Pay-for-put to keyserver '''
-        addr = str(self.ks_addr_put_e.text())
+        addr = str(self.ks_addr_upload_e.text())
         ks_url = self.ks_handler.uniform_sample()
         url = "%s/keys/%s" % (ks_url, addr)
 
         try:
             # Construct basic metadata from payload text
-            metadata = self._basic_metadata(addr)
+            index = self.ks_combobox_upload.currentIndex()
+
+            if index == 0:
+                data = self.plain_text_form.upload_plain_text_e.toPlainText() # TODO: Make this generic
+                metadata = self._plaintext_metadata(addr, data)
+            elif index == 1:
+                data = self.telegram_form.upload_telegram_e.text()
+                metadata = self._plaintext_metadata(addr, data, type_override="telegram")
         except UserCancelled:
             return
         except Exception as e:
-            self.print_error("_basic_metadata:", repr(e))
+            self.print_error("metadata construction error:", repr(e))
             self.show_error(str(e))
             return
 
