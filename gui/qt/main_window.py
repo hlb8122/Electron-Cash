@@ -2531,8 +2531,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def create_keyserver_tab(self):
         from electroncash.keyserver.handler import KSHandler
-        from electroncash.keyserver.plain_text import plain_text_extractor
-        from electroncash.keyserver.peer_list import peer_list_extractor
+        from electroncash.keyserver.tools import plain_text_extractor, peer_list_extractor
         from .ks_gui import PlainTextForm, TelegramForm, PeerListForm, StealthAddressForm, telegram_executor
         # Create keyserver handler
         self.ks_handler = KSHandler()

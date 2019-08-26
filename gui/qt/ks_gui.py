@@ -1,5 +1,4 @@
-from electroncash.keyserver.plain_text import plain_text_metadata
-from electroncash.keyserver.peer_list import peer_list_metadata
+from electroncash.keyserver.tools import plain_text_metadata, peer_list_metadata
 from electroncash.i18n import _
 
 from PyQt5.QtWidgets import *
