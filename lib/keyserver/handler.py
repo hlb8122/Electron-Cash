@@ -29,9 +29,10 @@ class KSHandler:
 
     @staticmethod
     def fetch_from_trusted(sample_size: int = 6):
+        from peer_list import peer_list_extractor
         '''Fetch keyserver list from one of the trusted nodes'''
         peer_list = KSHandler._uniform_aggregate(
-            KSHandler.trusted_ks_urls, KSHandler.trusted_peerlist_addr, peer_extractor, sample_size=sample_size)
+            KSHandler.trusted_ks_urls, KSHandler.trusted_peerlist_addr, peer_list_extractor, sample_size=sample_size)
         return KSHandler(peer_list)
 
     @staticmethod
@@ -104,7 +105,7 @@ class KSHandler:
     def get_data(self, addr, sample_size: int = None):
         aggregate, errors = self.uniform_aggregate(addr)
 
-        if aggregate is None:
+        if aggregate.metadata is None:
             return None, errors
 
         headers = {

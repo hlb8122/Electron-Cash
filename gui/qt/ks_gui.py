@@ -29,7 +29,7 @@ class KeyserverForm(QWidget):
         raise NotImplementedError
 
     def set_signer(self, signer):
-        self.signer = signer        
+        self.signer = signer
 
     def construct_metadata(self, addr):
         data = self._get_data()
@@ -67,7 +67,7 @@ class PlainTextForm(KeyserverForm):
         return plain_text_metadata(addr, data, signer, ttl)
 
 
-class TelegramForm( KeyserverForm):
+class TelegramForm(KeyserverForm):
     def __init__(self, on_text_changed, *args, **kwargs):
         super(TelegramForm, self).__init__(*args, **kwargs)
         plain_text_grid = QGridLayout()
@@ -126,6 +126,8 @@ class PeerListForm(KeyserverForm):
         return peer_list_metadata(addr, urls, signer, ttl)
 
 # TODO
+
+
 class StealthAddressForm(KeyserverForm):
     def __init__(self, on_text_changed, *args, **kwargs):
         super(StealthAddressForm, self).__init__(*args, **kwargs)
