@@ -2550,7 +2550,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.payload_download_e.setText('Rejected opening telegram group "%s".' % handle)
         self.ks_handler.add_handler("telegram", plain_text_extractor, telemgram_executor_w_msg)
 
-        # Peer list executor
+        # Keyserver list executor
         def ks_urls_executor_w_msg(urls: list):
             if self.question("Switch keyservers?"):
                 ks_urls_str = ""
@@ -2590,7 +2590,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.ks_combobox_upload.addItem("Plain Text")
         self.ks_combobox_upload.addItem("Telegram")
         self.ks_combobox_upload.addItem("Stealth Addresses")
-        self.ks_combobox_upload.addItem("Peer List")
+        self.ks_combobox_upload.addItem("Keyserver List")
         description_label.setBuddy(self.ks_combobox_upload)
         upload_grid.addWidget(self.ks_combobox_upload, 2, 1, 1, -1)
 
