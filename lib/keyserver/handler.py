@@ -17,15 +17,15 @@ class KSHandler:
 
     def __init__(self, ks_urls: list = None, default_sample_size: int = 6):
         self.default_sample_size = default_sample_size
-        self.payload_types = dict()
+        self.handler = dict()
 
         if ks_urls is None:
             self.ks_urls = self.trusted_ks_urls
         else:
             self.ks_urls = ks_urls
 
-    def add_executor(self, name: str, extractor, executor):
-        self.payload_types[name] = (extractor, executor)
+    def add_handler(self, name: str, extractor, executor):
+        self.handler[name] = (extractor, executor)
 
     @staticmethod
     def fetch_from_trusted(sample_size: int = 6):
@@ -109,7 +109,7 @@ class KSHandler:
 
         headers = {
             header.name: header.value for header in aggregate.metadata.payload.rows[0].headers}
-        extractor, _ = self.payload_types[headers["type"]]
+        extractor, _ = self.handler[headers["type"]]
 
         extracted = None
         try:
@@ -129,7 +129,7 @@ class KSHandler:
 
         headers = {
             header.name: header.value for header in aggregate.metadata.payload.rows[0].headers}
-        extractor, executor = self.payload_types[headers["type"]]
+        extractor, executor = self.handler[headers["type"]]
 
         extracted = None
         try:

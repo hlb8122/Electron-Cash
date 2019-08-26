@@ -2539,13 +2539,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # Add executors
         # Plain text display
         set_payload_e = lambda x: self.payload_download_e.setText(x)
-        self.ks_handler.add_executor("text_utf8", plain_text_extractor, set_payload_e)
+        self.ks_handler.add_handler("text_utf8", plain_text_extractor, set_payload_e)
 
         # Telegram executor
         def telemgram_executor_w_msg(handle: str):
             telegram_executor(handle)
             self.payload_download_e.setText("Directing to telegram group " + handle)
-        self.ks_handler.add_executor("telegram", plain_text_extractor, telemgram_executor_w_msg)
+        self.ks_handler.add_handler("telegram", plain_text_extractor, telemgram_executor_w_msg)
 
         # Upload
         upload_groupbox = QGroupBox("Upload")
