@@ -2531,7 +2531,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def create_keyserver_tab(self):
         from electroncash.keyserver.handler import KSHandler
-        from electroncash.keyserver.tools import plain_text_extractor, peer_list_extractor
+        from electroncash.keyserver.tools import plain_text_extractor, ks_urls_extractor
         from .ks_gui import PlainTextForm, TelegramForm, PeerListForm, StealthAddressForm, telegram_executor
         # Create keyserver handler
         self.ks_handler = KSHandler()
@@ -2551,13 +2551,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.ks_handler.add_handler("telegram", plain_text_extractor, telemgram_executor_w_msg)
 
         # Peer list executor
-        def peer_list_executor_w_msg(urls: list):
-            # TODO: Add to peer list?
-            peer_list_str = ""
-            for url in urls:
-                peer_list_str += url + "\n"
-            self.payload_download_e.setText("Found peer list: \n" + peer_list_str)
-        self.ks_handler.add_handler("peer_list", peer_list_extractor, peer_list_executor_w_msg)
+        def ks_urls_executor_w_msg(urls: list):
+            if self.question("Switch keyservers?"):
+                ks_urls_str = ""
+                for url in urls:
+                    ks_urls_str += url + "\n"
+                self.payload_download_e.setText("Switched to: \n" + ks_urls_str)
+                self.ks_handler.set_keyservers(urls)
+
+        self.ks_handler.add_handler("ks_urls", ks_urls_extractor, ks_urls_executor_w_msg)
 
         # Upload
         upload_groupbox = QGroupBox("Upload")
@@ -2631,9 +2633,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.stealth_addr_form.set_signer(self._sign_metadata_digest)
         self.stacked_forms.addWidget(self.stealth_addr_form)
 
-        self.peer_list_form = PeerListForm(on_text_changed)
-        self.peer_list_form.set_signer(self._sign_metadata_digest)
-        self.stacked_forms.addWidget(self.peer_list_form)
+        self.ks_urls_form = PeerListForm(on_text_changed)
+        self.ks_urls_form.set_signer(self._sign_metadata_digest)
+        self.stacked_forms.addWidget(self.ks_urls_form)
 
         self.ks_form_groupbox.setLayout(form_layout)
         upload_grid.addWidget(self.ks_form_groupbox, 3, 0, 1, -1)

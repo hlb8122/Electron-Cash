@@ -13,27 +13,30 @@ class KSHandler:
     trusted_ks_urls = ["http://35.232.229.28", "http://34.67.137.105"]
 
     # Address holding peer list
-    trusted_peerlist_addr = ""
+    trusted_keyservers_addr = ""
 
     def __init__(self, ks_urls: list = None, default_sample_size: int = 6):
         self.default_sample_size = default_sample_size
-        self.handler = dict()
+        self.handlers = dict()
 
         if ks_urls is None:
             self.ks_urls = self.trusted_ks_urls
         else:
-            self.ks_urls = ks_urls
+            self.ks_urls = self.trusted_ks_urls + ks_urls
 
     def add_handler(self, name: str, extractor, executor):
-        self.handler[name] = (extractor, executor)
+        self.handlers[name] = (extractor, executor)
 
     @staticmethod
     def fetch_from_trusted(sample_size: int = 6):
         from peer_list import peer_list_extractor
         '''Fetch keyserver list from one of the trusted nodes'''
-        peer_list = KSHandler._uniform_aggregate(
-            KSHandler.trusted_ks_urls, KSHandler.trusted_peerlist_addr, peer_list_extractor, sample_size=sample_size)
-        return KSHandler(peer_list)
+        ks_urls = KSHandler._uniform_aggregate(
+            KSHandler.trusted_ks_urls, KSHandler.trusted_keyservers_addr, peer_list_extractor, sample_size=sample_size)
+        return KSHandler(ks_urls)
+
+    def set_keyservers(self, urls: list):
+        self.ks_urls = self.trusted_ks_urls + urls
 
     @staticmethod
     def _validate_sig(addr: str, payload: Payload):
@@ -110,7 +113,7 @@ class KSHandler:
 
         headers = {
             header.name: header.value for header in aggregate.metadata.payload.rows[0].headers}
-        extractor, _ = self.handler[headers["type"]]
+        extractor, _ = self.handlers[headers["type"]]
 
         extracted = None
         try:
@@ -130,7 +133,7 @@ class KSHandler:
 
         headers = {
             header.name: header.value for header in aggregate.metadata.payload.rows[0].headers}
-        extractor, executor = self.handler[headers["type"]]
+        extractor, executor = self.handlers[headers["type"]]
 
         extracted = None
         try:

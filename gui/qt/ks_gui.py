@@ -1,4 +1,4 @@
-from electroncash.keyserver.tools import plain_text_metadata, peer_list_metadata
+from electroncash.keyserver.tools import plain_text_metadata, ks_urls_metadata
 from electroncash.i18n import _
 
 from PyQt5.QtWidgets import *
@@ -102,27 +102,27 @@ class PeerListForm(KeyserverForm):
         msg = _('Peer list to be uploaded. Line delimited.')
         description_label = HelpLabel(_('&Peers'), msg)
         plain_text_grid.addWidget(description_label, 3, 0)
-        self.upload_peer_list_e = QTextEdit()
-        self.upload_peer_list_e.textChanged.connect(on_text_changed)
-        description_label.setBuddy(self.upload_peer_list_e)
-        plain_text_grid.addWidget(self.upload_peer_list_e, 3, 1, 1, -1)
+        self.upload_ks_urls_e = QTextEdit()
+        self.upload_ks_urls_e.textChanged.connect(on_text_changed)
+        description_label.setBuddy(self.upload_ks_urls_e)
+        plain_text_grid.addWidget(self.upload_ks_urls_e, 3, 1, 1, -1)
         self.setLayout(plain_text_grid)
 
     def is_full(self):
-        return bool(self.upload_peer_list_e.toPlainText())
+        return bool(self.upload_ks_urls_e.toPlainText())
 
     def clear(self):
-        self.upload_peer_list_e.clear()
+        self.upload_ks_urls_e.clear()
 
     def _get_ttl(self):
         return 60*60
 
     def _get_data(self):
-        urls = self.upload_peer_list_e.toPlainText().split("\n")
+        urls = self.upload_ks_urls_e.toPlainText().split("\n")
         return urls
 
     def _construct_metadata(self, addr, urls, signer, ttl):
-        return peer_list_metadata(addr, urls, signer, ttl)
+        return ks_urls_metadata(addr, urls, signer, ttl)
 
 # TODO
 
