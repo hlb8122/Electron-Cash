@@ -2543,8 +2543,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         # Telegram executor
         def telemgram_executor_w_msg(handle: str):
-            telegram_executor(handle)
-            self.payload_download_e.setText("Directing to telegram group " + handle)
+            if self.question('Open Telegram group "%s"?' % handle):
+                self.payload_download_e.setText('Opening telegram group "%s"...' % handle)
+                telegram_executor(handle)
+            else:
+                self.payload_download_e.setText('Rejected opening telegram group "%s".' % handle)
         self.ks_handler.add_handler("telegram", plain_text_extractor, telemgram_executor_w_msg)
 
         # Peer list executor
