@@ -1,8 +1,10 @@
 from electroncash.keyserver.plain_text import plain_text_metadata
+from electroncash.keyserver.peer_list import peer_list_metadata
+from electroncash.i18n import _
+
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtCore import QUrl
-from electroncash.i18n import _
 from .util import *
 
 
@@ -93,6 +95,35 @@ class TelegramForm( KeyserverForm):
     def _construct_metadata(self, addr, data, signer, ttl):
         return plain_text_metadata(addr, data, signer, ttl, type_override="telegram")
 
+
+class PeerListForm(KeyserverForm):
+    def __init__(self, on_text_changed, *args, **kwargs):
+        super(PeerListForm, self).__init__(*args, **kwargs)
+        plain_text_grid = QGridLayout()
+        msg = _('Peer list to be uploaded. Line delimited.')
+        description_label = HelpLabel(_('&Peers'), msg)
+        plain_text_grid.addWidget(description_label, 3, 0)
+        self.upload_peer_list_e = QTextEdit()
+        self.upload_peer_list_e.textChanged.connect(on_text_changed)
+        description_label.setBuddy(self.upload_peer_list_e)
+        plain_text_grid.addWidget(self.upload_peer_list_e, 3, 1, 1, -1)
+        self.setLayout(plain_text_grid)
+
+    def is_full(self):
+        return bool(self.upload_peer_list_e.toPlainText())
+
+    def clear(self):
+        self.upload_peer_list_e.clear()
+
+    def _get_ttl(self):
+        return 60*60
+
+    def _get_data(self):
+        urls = self.upload_peer_list_e.toPlainText().split("\n")
+        return urls
+
+    def _construct_metadata(self, addr, urls, signer, ttl):
+        return peer_list_metadata(addr, urls, signer, ttl)
 
 # TODO
 class StealthAddressForm(KeyserverForm):

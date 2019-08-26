@@ -2532,7 +2532,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def create_keyserver_tab(self):
         from electroncash.keyserver.handler import KSHandler
         from electroncash.keyserver.plain_text import plain_text_extractor
-        from .ks_gui import PlainTextForm, TelegramForm, StealthAddressForm, telegram_executor
+        from electroncash.keyserver.peer_list import peer_list_extractor
+        from .ks_gui import PlainTextForm, TelegramForm, PeerListForm, StealthAddressForm, telegram_executor
         # Create keyserver handler
         self.ks_handler = KSHandler()
 
@@ -2546,6 +2547,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             telegram_executor(handle)
             self.payload_download_e.setText("Directing to telegram group " + handle)
         self.ks_handler.add_handler("telegram", plain_text_extractor, telemgram_executor_w_msg)
+
+        # Peer list executor
+        def peer_list_executor_w_msg(urls: list):
+            # TODO: Add to peer list?
+            peer_list_str = ""
+            for url in urls:
+                peer_list_str += url + "\n"
+            self.payload_download_e.setText("Found peer list: \n" + peer_list_str)
+        self.ks_handler.add_handler("peer_list", peer_list_extractor, peer_list_executor_w_msg)
 
         # Upload
         upload_groupbox = QGroupBox("Upload")
@@ -2576,6 +2586,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.ks_combobox_upload.addItem("Plain Text")
         self.ks_combobox_upload.addItem("Telegram")
         self.ks_combobox_upload.addItem("Stealth Addresses")
+        self.ks_combobox_upload.addItem("Peer List")
         description_label.setBuddy(self.ks_combobox_upload)
         upload_grid.addWidget(self.ks_combobox_upload, 2, 1, 1, -1)
 
@@ -2617,6 +2628,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.stealth_addr_form = StealthAddressForm(on_text_changed)
         self.stealth_addr_form.set_signer(self._sign_metadata_digest)
         self.stacked_forms.addWidget(self.stealth_addr_form)
+
+        self.peer_list_form = PeerListForm(on_text_changed)
+        self.peer_list_form.set_signer(self._sign_metadata_digest)
+        self.stacked_forms.addWidget(self.peer_list_form)
 
         self.ks_form_groupbox.setLayout(form_layout)
         upload_grid.addWidget(self.ks_form_groupbox, 3, 0, 1, -1)
