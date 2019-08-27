@@ -99,8 +99,8 @@ class PeerListForm(KeyserverForm):
     def __init__(self, on_text_changed, *args, **kwargs):
         super(PeerListForm, self).__init__(*args, **kwargs)
         plain_text_grid = QGridLayout()
-        msg = _('Peer list to be uploaded. Line delimited.')
-        description_label = HelpLabel(_('&Peers'), msg)
+        msg = _('Keyserver list to be uploaded. Line delimited.')
+        description_label = HelpLabel(_('&Servers'), msg)
         plain_text_grid.addWidget(description_label, 3, 0)
         self.upload_ks_urls_e = QTextEdit()
         self.upload_ks_urls_e.textChanged.connect(on_text_changed)
