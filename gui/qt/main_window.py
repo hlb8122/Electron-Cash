@@ -2591,8 +2591,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         description_label.setBuddy(self.ks_addr_upload_e)
         upload_grid.addWidget(self.ks_addr_upload_e, 1, 1, 1, -1)
 
-        msg = _('Payload scheme to be uploaded.')
-        description_label = HelpLabel(_('&Scheme'), msg)
+        msg = _('Item to be stored.')
+        description_label = HelpLabel(_('&Item'), msg)
         upload_grid.addWidget(description_label, 2, 0)
         self.ks_combobox_upload = QComboBox(self)
         self.ks_combobox_upload.addItem("Plain Text")
