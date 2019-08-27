@@ -1,4 +1,4 @@
-from electroncash.keyserver.tools import plain_text_metadata, ks_urls_metadata
+from electroncash.keyserver.tools import *
 from electroncash.i18n import _
 
 from PyQt5.QtWidgets import *
@@ -125,8 +125,6 @@ class PeerListForm(KeyserverForm):
         return ks_urls_metadata(addr, urls, signer, ttl)
 
 # TODO
-
-
 class StealthAddressForm(KeyserverForm):
     def __init__(self, on_text_changed, *args, **kwargs):
         super(StealthAddressForm, self).__init__(*args, **kwargs)
@@ -139,3 +137,57 @@ class StealthAddressForm(KeyserverForm):
 
     def _get_data(self):
         return None
+
+class VCardForm(KeyserverForm):
+    def __init__(self, on_text_changed, *args, **kwargs):
+        super(VCardForm, self).__init__(*args, **kwargs)
+        vcard_grid = QGridLayout()
+
+        msg = _('Name of contact.')
+        description_label = HelpLabel(_('&Name'), msg)
+        vcard_grid.addWidget(description_label, 0, 0)
+        self.upload_vName_e = QLineEdit()
+        self.upload_vName_e.textChanged.connect(on_text_changed)
+        description_label.setBuddy(self.upload_vName_e)
+        vcard_grid.addWidget(self.upload_vName_e, 0, 1, 1, -1)
+
+        msg = _('Mobile number of contact.')
+        description_label = HelpLabel(_('&Mobile'), msg)
+        vcard_grid.addWidget(description_label, 1, 0)
+        self.upload_vMobile_e = QLineEdit()
+        self.upload_vMobile_e.textChanged.connect(on_text_changed)
+        description_label.setBuddy(self.upload_vMobile_e)
+        vcard_grid.addWidget(self.upload_vMobile_e, 1, 1, 1, -1)
+
+        msg = _('Email of contact.')
+        description_label = HelpLabel(_('&Email'), msg)
+        vcard_grid.addWidget(description_label, 2, 0)
+        self.upload_vEmail_e = QLineEdit()
+        self.upload_vEmail_e.textChanged.connect(on_text_changed)
+        description_label.setBuddy(self.upload_vEmail_e)
+        vcard_grid.addWidget(self.upload_vEmail_e, 2, 1, 1, -1)
+
+        self.setLayout(vcard_grid)
+
+    def is_full(self):
+        # Name is required
+        return bool(self.upload_vName_e.text())
+
+    def clear(self):
+        self.upload_vName_e.clear()
+        self.upload_vMobile_e.clear()
+        self.upload_vEmail_e.clear()
+
+    def _get_ttl(self):
+        return 60*60
+
+    def _get_data(self):
+        card = {
+            "name": self.upload_vName_e.text(),
+            "mobile": self.upload_vMobile_e.text(),
+            "email": self.upload_vEmail_e.text()
+        }
+        return card
+
+    def _construct_metadata(self, addr, card, signer, ttl):
+        return vcard_metadata(addr, card, signer, ttl)

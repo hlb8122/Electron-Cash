@@ -2432,7 +2432,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.update_fee()
 
     def create_converter_tab(self):
-
         source_address = QLineEdit()
         cash_address = ButtonsLineEdit()
         cash_address.addCopyButton()
@@ -2531,8 +2530,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def create_keyserver_tab(self):
         from electroncash.keyserver.handler import KSHandler
-        from electroncash.keyserver.tools import plain_text_extractor, ks_urls_extractor
-        from .ks_gui import PlainTextForm, TelegramForm, PeerListForm, StealthAddressForm, telegram_executor
+        from electroncash.keyserver.tools import plain_text_extractor, ks_urls_extractor, vcard_extractor
+        from .ks_gui import PlainTextForm, TelegramForm, PeerListForm, StealthAddressForm, VCardForm, telegram_executor
         # Create keyserver handler
         self.ks_handler = KSHandler()
 
@@ -2560,6 +2559,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.ks_handler.set_keyservers(urls)
 
         self.ks_handler.add_handler("ks_urls", ks_urls_extractor, ks_urls_executor_w_msg)
+
+        # vCard executor
+        def vcard_executor_w_msg(vcard):
+            if self.question("Add to address book?"):
+                # TODO
+                print("TODO")
+
+            self.payload_download_e.setText(vcard.serialize())
+        self.ks_handler.add_handler("vcard", vcard_extractor, vcard_executor_w_msg)
 
         # Upload
         upload_groupbox = QGroupBox("Upload")
@@ -2591,6 +2599,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.ks_combobox_upload.addItem("Telegram")
         self.ks_combobox_upload.addItem("Stealth Addresses")
         self.ks_combobox_upload.addItem("Keyserver List")
+        self.ks_combobox_upload.addItem("vCard")
         description_label.setBuddy(self.ks_combobox_upload)
         upload_grid.addWidget(self.ks_combobox_upload, 2, 1, 1, -1)
 
@@ -2636,6 +2645,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.ks_urls_form = PeerListForm(on_text_changed)
         self.ks_urls_form.set_signer(self._sign_metadata_digest)
         self.stacked_forms.addWidget(self.ks_urls_form)
+
+        self.vcard_form = VCardForm(on_text_changed)
+        self.vcard_form.set_signer(self._sign_metadata_digest)
+        self.stacked_forms.addWidget(self.vcard_form)
 
         self.ks_form_groupbox.setLayout(form_layout)
         upload_grid.addWidget(self.ks_form_groupbox, 3, 0, 1, -1)
