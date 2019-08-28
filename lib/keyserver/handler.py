@@ -125,7 +125,7 @@ class KSHandler:
         aggregate, errors = self.uniform_aggregate(addr)
 
         if aggregate.metadata is None:
-            return None, errors
+            return errors
 
         for entry in aggregate.metadata.payload.entries:
             extractor, executor = self.handlers[entry.kind]
