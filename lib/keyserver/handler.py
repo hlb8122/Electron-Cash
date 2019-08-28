@@ -1,6 +1,6 @@
 import random
 import requests
-from .addressmetadata_pb2 import MetadataField, Payload, AddressMetadata, Header
+from .addressmetadata_pb2 import Entry, Payload, AddressMetadata, Header
 
 
 class KSHandler:
@@ -8,7 +8,6 @@ class KSHandler:
     KSHandler deals with operations relating to the management of keyservers
     and GET and PUT requests
     '''
-
     # Hardcoded trusted nodes
     trusted_ks_urls = ["http://35.232.229.28", "http://34.67.137.105"]
 
@@ -56,7 +55,7 @@ class KSHandler:
     @staticmethod
     def _uniform_aggregate(ks_urls: list, addr: str, sample_size: int):
         class Extracted:
-            sample = None
+            url = None
             metadata = None
             timestamp = 0
             confidence = 0
@@ -67,9 +66,9 @@ class KSHandler:
         sample_size = min([len(ks_urls), sample_size])
         sample_set = random.sample(ks_urls, sample_size)
 
-        for sample in sample_set:
+        for url in sample_set:
             try:
-                new_metadata = KSHandler.construct_metadata(sample, addr)
+                new_metadata = KSHandler.construct_metadata(url, addr)
                 new_timestamp = new_metadata.payload.timestamp
 
                 if new_timestamp < best.timestamp:
@@ -80,17 +79,17 @@ class KSHandler:
                         if new_timestamp > best.timestamp:
                             best.timestamp = new_timestamp
                             best.confidence = 0
-                            best.sample = sample
+                            best.url = url
                         else:
                             best.confidence += 1
                     else:
                         best.metadata = new_metadata
                         best.timestamp = new_timestamp
                         best.confidence = 0
-                        best.sample = sample
+                        best.url = url
 
             except Exception as e:
-                errors.append((sample, e))
+                errors.append((url, e))
 
         # This is safe because it'll raise earlier if len is 0
         best.confidence = best.confidence / len(ks_urls)
@@ -111,41 +110,29 @@ class KSHandler:
         if aggregate.metadata is None:
             return None, errors
 
-        headers = {
-            header.name: header.value for header in aggregate.metadata.payload.rows[0].headers}
-        extractor, _ = self.handlers[headers["type"]]
+        extracted = []
+        for entry in aggregate.metadata.payload.entries:
+            extractor, _ = self.handlers[entry.kind]
 
-        extracted = None
-        try:
-            # TODO: Don't ignore other rows
-            body = aggregate.metadata.payload.rows[0].metadata
-            extracted = extractor(body)
-        except Exception as e:
-            errors.append((aggregate.sample, e))
+            try:
+                extracted.append(extractor(entry.entry_data))
+            except Exception as e:
+                errors.append((aggregate.url, e))
 
         return extracted, errors
 
-    def get_exec(self, addr, sample_size: int = None):
+    def execute(self, addr, sample_size: int = None):
         aggregate, errors = self.uniform_aggregate(addr)
 
         if aggregate.metadata is None:
             return None, errors
 
-        headers = {
-            header.name: header.value for header in aggregate.metadata.payload.rows[0].headers}
-        extractor, executor = self.handlers[headers["type"]]
+        for entry in aggregate.metadata.payload.entries:
+            extractor, executor = self.handlers[entry.kind]
+            try:
+                data = extractor(entry.entry_data)
+                executor(data)
+            except Exception as e:
+                errors.append((aggregate.url, e))
 
-        extracted = None
-        try:
-            # TODO: Don't ignore other rows
-            body = aggregate.metadata.payload.rows[0].metadata
-            extracted = extractor(body)
-        except Exception as e:
-            errors.append((aggregate.sample, e))
-
-        if extracted is None:
-            return None, errors
-
-        def execution(): return executor(extracted)
-
-        return execution, errors
+        return errors
