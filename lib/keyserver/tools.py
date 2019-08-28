@@ -47,7 +47,7 @@ def vcard_entry(card: dict):
     v.email.value = card["email"]
     v.add('tel')
     v.tel.type_param = "MOBILE"
-    v.email.value = card["mobile"]
+    v.tel.value = card["mobile"]
     body = v.serialize().encode('utf8')
 
     entry = Entry(kind="vcard", headers=[], entry_data=body)
