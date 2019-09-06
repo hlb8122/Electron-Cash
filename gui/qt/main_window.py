@@ -2691,6 +2691,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
             addr = self._pick_address()
             if addr:
+                self.log_download_e.setText("")
                 full_addr = addr.to_full_ui_string()
                 self.ks_addr_download_e.setText(full_addr)
                 errors = self.ks_handler.execute(full_addr)
