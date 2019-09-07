@@ -65,14 +65,15 @@ def decrypt(raw_entries, dest_secret, src_pk, seed):
     plaintext = aes_decrypt_with_iv(key_e, iv, raw_entries)
     return plaintext   
 
-def encrypt_entries(entries, src_key, dest_point, signer=sign_ecdsa):
+def encrypt_entries(entries, src_key, dest_ser, signer=sign_ecdsa):
     # Encrypt the payload using AES with an ephemeral diffie-helmen key
     serialized_payload = bytes(entries.SerializeToString())
+    dest_point = ser_to_point(dest_ser)
     encrypted_entries, seed = encrypt(serialized_payload, dest_point, src_key)
     # Put it in the payload that will be signed.
     text_payload = Payload(
         timestamp=int(time()),
-        destination=point_to_ser(dest_point, True),
+        destination=dest_ser,
         scheme=Payload.EphemeralDH,
         entries=encrypted_entries,
         secret_seed=seed

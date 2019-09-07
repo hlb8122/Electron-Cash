@@ -2529,7 +2529,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.create_list_tab(l)
 
     def _construct_ks_handler(self):
-        from electroncash.keyserver.tools import plain_text_extractor, ks_urls_extractor, vcard_extractor, pubkey_extractor
+        from electroncash.keyserver.metadata_tools import plain_text_extractor, ks_urls_extractor, vcard_extractor, pubkey_extractor
         from electroncash.keyserver.handler import KSHandler
         from .ks_gui import telegram_executor
         self.ks_handler = KSHandler()
@@ -2569,15 +2569,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
             from ecdsa.util import string_to_number, number_to_string, randrange
             from electroncash.bitcoin import EC_KEY
+            from electroncash.keyserver.w2w_tools import w2w_plain_text_entry
+            from electroncash.keyserver.w2w_messages import encrypt_entries
+            from electroncash.keyserver.messaging_pb2 import Entries
+
             exponent = number_to_string(randrange(pow(2,256)), generator_secp256k1.order())
             src_pubkey = EC_KEY(exponent)
 
-            from electroncash.keyserver.w2w_messages import encrypt_txt_message
             msg = self.log_download_e.toPlainText()
             if self.question("Create encrypted message using this pubkey?"):
                 plain_text = text_dialog(self.top_level_window(), "Message Encryption", "Plain text", "Ok")
-                encrypted_message = encrypt_txt_message(plain_text.encode('utf8'), src_pubkey, dest_pubkey)
-                encoded = base64.b64encode(encrypted_message)
+                entries = Entries(entries=[w2w_plain_text_entry(plain_text)])
+                encrypted_message = encrypt_entries(entries, src_pubkey, dest_pubkey)
+                encoded = str(base64.b64encode(encrypted_message))
                 msg += "Message (base64): \n"
                 msg += encoded
                 msg += "\n"

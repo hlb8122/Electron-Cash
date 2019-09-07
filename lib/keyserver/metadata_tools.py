@@ -1,7 +1,6 @@
 import time
 from .addressmetadata_pb2 import Entry, Payload, AddressMetadata, Header
 from .keyservers_pb2 import *
-from ..bitcoin import EC_KEY
 
 
 def plain_text_extractor(body: bytes):

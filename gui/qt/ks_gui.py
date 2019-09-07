@@ -1,4 +1,4 @@
-from electroncash.keyserver.tools import *
+from electroncash.keyserver.metadata_tools import *
 from electroncash.i18n import _
 
 from PyQt5.QtWidgets import *
