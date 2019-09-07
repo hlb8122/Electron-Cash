@@ -32,17 +32,16 @@ def verify_schnorr(pk, signature, digest):
     # TODO: This requires extra work to use schnorr.py
     pass
 
-def encrypt(raw_entries, dest_pubkey, src_pubkey):
+def encrypt(raw_entries, dest_point, src_key):
     assert_bytes(raw_entries)
-    pk = dest_pubkey.pubkey.point
-    if not point_is_valid(generator_secp256k1, pk.x(), pk.y()):
+    if not point_is_valid(generator_secp256k1, dest_point.x(), dest_point.y()):
         raise Exception('invalid pubkey')
     ephemeral_exponent = number_to_string(randrange(pow(2,256)), generator_secp256k1.order())
     ephemeral = EC_KEY(ephemeral_exponent)
     # We need a commitment to the src key here, otherwise
     # someone could co-opt an encrypted payload, resign it, and send
     # it to the intended recipient claiming to be the author.
-    ecdh_key = point_to_ser(pk * ephemeral.privkey.secret_multiplier + src_pubkey.pubkey.point)
+    ecdh_key = point_to_ser(dest_point * ephemeral.privkey.secret_multiplier + src_key.pubkey.point)
     key = sha512(ecdh_key).digest()
     iv, key_e, _ = key[0:16], key[16:32], key[32:]
     ciphertext = aes_encrypt_with_iv(key_e, iv, raw_entries)
@@ -66,28 +65,22 @@ def decrypt(raw_entries, dest_secret, src_pk, seed):
     plaintext = aes_decrypt_with_iv(key_e, iv, raw_entries)
     return plaintext   
 
-def encrypt_txt_message(text_message, src_pubkey, dest_pubkey, signer=sign_ecdsa):
-    assert_bytes(text_message)
-    # Create a text payload message
-    entry = Entry()
-    entry.kind = "text_utf8"
-    entry.entry_data = bytes(text_message)
-    entries = Entries(entries=[entry])
+def encrypt_entries(entries, src_key, dest_point, signer=sign_ecdsa):
     # Encrypt the payload using AES with an ephemeral diffie-helmen key
     serialized_payload = bytes(entries.SerializeToString())
-    encrypted_entries, seed = encrypt(serialized_payload, dest_pubkey, src_pubkey)
+    encrypted_entries, seed = encrypt(serialized_payload, dest_point, src_key)
     # Put it in the payload that will be signed.
     text_payload = Payload(
         timestamp=int(time()),
-        destination=point_to_ser(dest_pubkey.pubkey.point, True),
+        destination=point_to_ser(dest_point, True),
         scheme=Payload.EphemeralDH,
         entries=encrypted_entries,
         secret_seed=seed
         )
     # Generate final signature for payload for non-repudiation and authenticit
-    msg = Message(payload=text_payload.SerializeToString(), sender_pub_key=point_to_ser(src_pubkey.pubkey.point, True))
+    msg = Message(payload=text_payload.SerializeToString(), sender_pub_key=point_to_ser(src_key.pubkey.point, True))
     digest = sha256(msg.payload).digest()
-    scheme, signature = signer(src_pubkey, digest)
+    scheme, signature = signer(src_key, digest)
     msg.scheme = scheme
     msg.signature = signature
     # NOTE: Someone can steal the encrypted payload and claim it as their own.
@@ -96,7 +89,7 @@ def encrypt_txt_message(text_message, src_pubkey, dest_pubkey, signer=sign_ecdsa
     # the secret.  H(sP + eP) rather than H(eP) 
     return bytes(msg.SerializeToString())
 
-def decrypt_txt_message(msg, dest_key):
+def decrypt_entries(msg, dest_key):
     assert_bytes(msg)
     msg = Message.FromString(msg)
     # Verify signature

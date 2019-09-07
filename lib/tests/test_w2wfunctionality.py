@@ -30,7 +30,7 @@ from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
 from ecdsa.curves import SECP256k1
 from ecdsa.ellipticcurve import Point
 from ecdsa.util import string_to_number, number_to_string, randrange
-from ..keyserver.w2w_messages import encrypt_txt_message, decrypt_txt_message
+from ..keyserver.w2w_messages import encrypt_entries, decrypt_entries
 from ..bitcoin import EC_KEY
 
 def generate_key():
@@ -41,10 +41,21 @@ def generate_key():
 class TestW2WMessaging(unittest.TestCase):
     """Unit test class for cashaddr addressess."""
     def test_encrypt_decrypt(self):
-        dest_pubkey = generate_key()
-        src_pubkey = generate_key()
-        encrypted_message = encrypt_txt_message(b"Hello world!", src_pubkey, dest_pubkey)
-        msg, timestamp, entries = decrypt_txt_message(encrypted_message, dest_pubkey)
-        assert entries[0].entry_data == b"Hello world!", "Failed to decrypt"
-        # base64.b64encode(encrypted_message)
+        entry = Entry()
+        entry.kind = "text_utf8"
+        entry.entry_data = bytes("Hello world!")
+        entries = Entries(entries=[entry])
 
+        dest_key = generate_key()
+        src_key = generate_key()
+        encrypted_message = encrypt_entries(entries, src_key, dest_key.pubkey.point)
+        msg, timestamp, decoded_entries = decrypt_txt_message(encrypted_message, dest_key)
+        assert decoded_entries[0].entry_data == entry.entry_data, "Failed to decrypt"
+        base64.b64encode(encrypted_message)
+        with open("message.txt", "w") as f:
+            f.write(base64.b64encode(encrypted_message).decode('utf-8'))
+
+        with open("message.txt", "rb") as f:
+            ciphertext = base64.b64decode(f.read())
+            msg, timestamp, decoded_entries = decrypt_txt_message(ciphertext, dest_key)
+            assert decoded_entries[0].entry_data == b"Hello world!", "Failed to decrypt"
