@@ -67,6 +67,38 @@ class TelegramForm(KeyserverForm):
         text = self.upload_telegram_e.text()
         return telegram_entry(text)
 
+class PubkeyForm(KeyserverForm):
+    def __init__(self, parent, *args, **kwargs):
+        super(KeyserverForm, self).__init__(*args, **kwargs)
+        pubkey_grid = QGridLayout()
+        self.parent = parent
+
+        def pick_address():
+            addr = parent._pick_address()
+            if addr:
+                self.upload_pubkey_e.setText(self.parent.wallet.get_public_key(addr))
+
+        msg = _('Pubkey to uploaded.  Use the tool button on the right to pick a wallet address.')
+        description_label = HelpLabel(_('&PubKey'), msg)
+        pubkey_grid.addWidget(description_label, 1, 0)
+        self.upload_pubkey_e = ButtonsLineEdit()
+        self.upload_pubkey_e.setReadOnly(True)
+        self.upload_pubkey_e.setPlaceholderText(_("Specify a wallet address"))
+        self.upload_pubkey_e.addButton(":icons/tab_addresses.png", on_click=pick_address, tooltip=_("Pick an address from your wallet"))
+        description_label.setBuddy(self.upload_pubkey_e)
+        pubkey_grid.addWidget(self.upload_pubkey_e, 1, 1, 1, -1)
+
+        self.setLayout(pubkey_grid)
+
+    def is_full(self):
+        return bool(self.upload_pubkey_e.text())
+
+    def clear(self):
+        self.upload_telegram_e.clear()
+
+    def construct_entry(self):
+        pubkey = bytes.fromhex(self.upload_pubkey_e.text())
+        return pubkey_entry(pubkey)
 
 class KeyserverURLForm(KeyserverForm):
     def __init__(self, *args, **kwargs):
