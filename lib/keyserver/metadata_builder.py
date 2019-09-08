@@ -42,7 +42,7 @@ class MetadataBuilder:
 
         # Sign
         raw_payload = payload.SerializeToString()
-        digest = sha256(sha256(raw_payload).digest()).digest()
+        digest = sha256(raw_payload).digest()
         public_key, signature = self.signer(self.addr, digest)
 
         # Address metadata
