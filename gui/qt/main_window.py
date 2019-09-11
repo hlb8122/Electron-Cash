@@ -2529,7 +2529,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.create_list_tab(l)
 
     def _construct_ks_handler(self):
-        from electroncash.keyserver.tools import plain_text_extractor, ks_urls_extractor, vcard_extractor
+        from electroncash.keyserver.metadata_tools import plain_text_extractor, ks_urls_extractor, vcard_extractor, pubkey_extractor
         from electroncash.keyserver.handler import KSHandler
         from .ks_gui import telegram_executor
         self.ks_handler = KSHandler()
@@ -2564,7 +2564,30 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.log_download_e.setText(msg)
                 self.ks_handler.set_keyservers(urls)
 
-        self.ks_handler.add_handler("ks_urls", ks_urls_extractor, ks_urls_executor_w_msg)
+        # Keyserver list executor
+        def pubkey_executor_w_msg(dest_pubkey: bytes):
+            from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
+            from ecdsa.util import string_to_number, number_to_string, randrange
+            from electroncash.bitcoin import EC_KEY
+            from electroncash.keyserver.w2w_tools import w2w_plain_text_entry
+            from electroncash.keyserver.w2w_messages import encrypt_entries
+            from electroncash.keyserver.messaging_pb2 import Entries
+
+            exponent = number_to_string(randrange(pow(2,256)), generator_secp256k1.order())
+            src_pubkey = EC_KEY(exponent)
+
+            msg = self.log_download_e.toPlainText()
+            if self.question("Create encrypted message using this pubkey?"):
+                plain_text = text_dialog(self.top_level_window(), "Message Encryption", "Plain text", "Ok")
+                entries = Entries(entries=[w2w_plain_text_entry(plain_text)])
+                encrypted_message = encrypt_entries(entries, src_pubkey, dest_pubkey)
+                encoded = str(base64.b64encode(encrypted_message))
+                msg += "Message (base64): \n"
+                msg += encoded
+                msg += "\n"
+                self.log_download_e.setText(msg)
+
+        self.ks_handler.add_handler("pubkey", pubkey_extractor, pubkey_executor_w_msg)
 
         # vCard executor
         def vcard_executor_w_msg(vcard):
@@ -2578,7 +2601,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
     def create_keyserver_tab(self):
-        from .ks_gui import PlainTextForm, TelegramForm, KeyserverURLForm, StealthAddressForm, VCardForm, TabWidget
+        from .ks_gui import PlainTextForm, TelegramForm, KeyserverURLForm, StealthAddressForm, VCardForm, PubkeyForm, TabWidget
 
         # Create keyserver handler
         self._construct_ks_handler()
@@ -2621,6 +2644,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.ks_combobox_upload.addItem("Telegram")
         self.ks_combobox_upload.addItem("Keyserver List")
         self.ks_combobox_upload.addItem("vCard")
+        self.ks_combobox_upload.addItem("PubKey")
         description_label.setBuddy(self.ks_combobox_upload)
         upload_grid.addWidget(self.ks_combobox_upload, 3, 1, 1, 1)
         add_new_entry = QPushButton(_("&Add"))
@@ -2639,6 +2663,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.ks_forms.addTab(KeyserverURLForm(), "Keyserver List")
             elif index == 3:
                 self.ks_forms.addTab(VCardForm(), "vCard")
+            elif index == 4:
+                self.ks_forms.addTab(PubkeyForm(self), "PubKey")
 
         def remove_forms():
             self.ks_forms.clear()
@@ -2793,21 +2819,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.payto_e.setText(text)
             self.payto_e.setFocus()
 
-    def _sign_metadata_digest(self, addr: str, digest: bytes):
-        password = None
-        while self.wallet.has_password():
-            # grab password
-            password = self.password_dialog()
-            if password is None:
-                # User cancel
-                raise UserCancelled()
-            try:
-                self.wallet.check_password(password)
-                break
-            except InvalidPassword:
-                self.show_error(_("Invalid password, try again"))
-                continue
 
+    @protected
+    def _sign_metadata_digest(self, addr: str, digest: bytes, password: str):
         addr = Address.from_string(addr)
         signature = self.wallet.sign_digest(addr, digest, password)
         public_key = bytes.fromhex(self.wallet.get_public_key(addr))
