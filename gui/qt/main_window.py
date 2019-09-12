@@ -2616,7 +2616,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def pick_address():
             addr = self._pick_ks_address(False)
             if addr:
-                self.ks_addr_upload_e.setText(addr.to_full_ui_string())
+                self.ks_addr_upload_e.setText(addr)
 
         msg = _('Address to uploaded to.  Use the tool button on the right to pick a wallet address.')
         description_label = HelpLabel(_('&Address'), msg)
