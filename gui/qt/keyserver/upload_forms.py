@@ -76,14 +76,15 @@ class UPubkeyForm(UKeyserverForm):
         self.parent = parent
 
         def pick_address():
-            addr = parent._pick_address()
+            from .address_list import pick_ks_address
+            addr = pick_ks_address(parent)
             if addr:
                 self.upload_pubkey_e.setText(
                     self.parent.wallet.get_public_key(addr))
 
         msg = _(
             'Public key to uploaded.  Use the tool button on the right to pick a wallet address.')
-        description_label = HelpLabel(_('&PubKey'), msg)
+        description_label = HelpLabel(_('&Public Key'), msg)
         pubkey_grid.addWidget(description_label, 1, 0)
         self.upload_pubkey_e = ButtonsLineEdit()
         self.upload_pubkey_e.setReadOnly(True)
