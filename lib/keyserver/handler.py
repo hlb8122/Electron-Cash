@@ -2,10 +2,12 @@ import random
 import requests
 from .addressmetadata_pb2 import Entry, Payload, AddressMetadata, Header
 
+
 class Extracted:
     url = None
     metadata = None
     confidence = 0
+
 
 class KSHandler:
     '''
@@ -82,7 +84,6 @@ class KSHandler:
             except Exception as e:
                 errors.append((url, e))
 
-
         if best is not None:
             # This is safe because it'll raise earlier if len is 0
             best.confidence = best.confidence / len(ks_urls)
@@ -96,4 +97,3 @@ class KSHandler:
 
     def uniform_sample(self):
         return random.choice(self.ks_urls)
-

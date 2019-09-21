@@ -2573,7 +2573,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.ks_combobox_upload = QComboBox(self)
         self.ks_combobox_upload.addItem("Plain Text")
         self.ks_combobox_upload.addItem("Telegram")
-        self.ks_combobox_upload.addItem("Keyserver List")
+        self.ks_combobox_upload.addItem("Keyservers")
         self.ks_combobox_upload.addItem("vCard")
         self.ks_combobox_upload.addItem("PubKey")
         description_label.setBuddy(self.ks_combobox_upload)

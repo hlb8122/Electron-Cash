@@ -56,7 +56,7 @@ def pubkey_encrypt(parent, dest_pubkey: bytes):
         encrypted_message = encrypt_entries(entries, src_pubkey, dest_pubkey)
         encoded = str(base64.b64encode(encrypted_message))
         parent.msg_box(QMessageBox.Information, None,
-                    "Cipher Text (Base 64)", encoded)
+                       "Cipher Text (Base 64)", encoded)
 
 
 class OverviewForm(QWidget):
