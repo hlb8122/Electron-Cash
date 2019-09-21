@@ -2528,84 +2528,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.contact_list = l = ContactList(self)
         return self.create_list_tab(l)
 
-    def _construct_ks_handler(self):
-        from electroncash.keyserver.metadata_tools import plain_text_extractor, ks_urls_extractor, vcard_extractor, pubkey_extractor
-        from electroncash.keyserver.handler import KSHandler
-        from .keyserver.executors import telegram_executor
-        self.ks_handler = KSHandler()
-
-        # Add executors
-        # Plain text display
-        def plain_text_executor(text: str):
-            msg = self.log_download_e.toPlainText()
-            msg += "Plain text found:\n" + text + "\n\n"
-            self.log_download_e.setText(msg)
-        self.ks_handler.add_handler("text_utf8", plain_text_extractor, plain_text_executor)
-
-        # Telegram executor
-        def telemgram_executor_w_msg(handle: str):
-            msg = self.log_download_e.toPlainText()
-            if self.question('Open Telegram group "%s"?' % handle):
-                msg += 'Opening telegram group "%s"...\n\n' % handle
-                telegram_executor(msg)
-            else:
-                msg += 'Rejected opening telegram group "%s".\n\n' % handle
-            self.log_download_e.setText(msg)
-        self.ks_handler.add_handler("telegram", plain_text_extractor, telemgram_executor_w_msg)
-
-        # Keyserver list executor
-        def ks_urls_executor_w_msg(urls: list):
-            msg = self.log_download_e.toPlainText()
-            if self.question("Switch keyservers?"):
-                msg += "Switched to: \n"
-                for url in urls:
-                    ks_urls_str += url + "\n"
-                msg += "\n"
-                self.log_download_e.setText(msg)
-                self.ks_handler.set_keyservers(urls)
-
-        # Keyserver list executor
-        def pubkey_executor_w_msg(dest_pubkey: bytes):
-            from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
-            from ecdsa.util import string_to_number, number_to_string, randrange
-            from electroncash.bitcoin import EC_KEY
-            from electroncash.keyserver.w2w_tools import w2w_plain_text_entry
-            from electroncash.keyserver.w2w_messages import encrypt_entries
-            from electroncash.keyserver.messaging_pb2 import Entries
-
-            exponent = number_to_string(randrange(pow(2,256)), generator_secp256k1.order())
-            src_pubkey = EC_KEY(exponent)
-
-            msg = self.log_download_e.toPlainText()
-            if self.question("Create encrypted message using this pubkey?"):
-                plain_text = text_dialog(self.top_level_window(), "Message Encryption", "Plain text", "Ok")
-                entries = Entries(entries=[w2w_plain_text_entry(plain_text)])
-                encrypted_message = encrypt_entries(entries, src_pubkey, dest_pubkey)
-                encoded = str(base64.b64encode(encrypted_message))
-                msg += "Message (base64): \n"
-                msg += encoded
-                msg += "\n"
-                self.log_download_e.setText(msg)
-
-        self.ks_handler.add_handler("pubkey", pubkey_extractor, pubkey_executor_w_msg)
-
-        # vCard executor
-        def vcard_executor_w_msg(vcard):
-            msg = self.log_download_e.toPlainText()
-            if self.question("Add to address book?"):
-                # TODO
-                print("TODO")
-            msg += vcard.serialize() + "\n\n"
-            self.log_download_e.setText(msg)
-        self.ks_handler.add_handler("vcard", vcard_extractor, vcard_executor_w_msg)
-
-
     def create_keyserver_tab(self):
-        from .keyserver.upload_forms import PlainTextForm, TelegramForm, KeyserverURLForm, VCardForm, PubkeyForm
+        from .keyserver.upload_forms import UPlainTextForm, UTelegramForm, UKeyserverURLForm, UVCardForm, UPubkeyForm
         from .keyserver.tab_bar import TabWidget
         from .keyserver.address_list import pick_ks_address
-        # Create keyserver handler
-        self._construct_ks_handler()
+        from electroncash.keyserver.handler import KSHandler
+
+        # Init handler
+        self.ks_handler = KSHandler()
 
         # Upload
         upload_groupbox = QGroupBox("Upload")
@@ -2651,8 +2581,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         add_new_entry = QPushButton(_("&Add"))
         upload_grid.addWidget(add_new_entry, 3, 2, 1, 1)
         
-        self.ks_forms = TabWidget(self)
-        upload_grid.addWidget(self.ks_forms, 4, 0, 1, -1)
+        self.u_ks_forms = TabWidget(self)
+        upload_grid.addWidget(self.u_ks_forms, 4, 0, 1, -1)
 
         def on_text_changed():
             # TODO: More validation here.
@@ -2663,8 +2593,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 upload_button.setEnabled(False)
                 return
             
-            for index in range(self.ks_forms.count()):
-                if not self.ks_forms.widget(index).is_full():
+            for index in range(self.u_ks_forms.count()):
+                if not self.u_ks_forms.widget(index).is_full():
                     upload_button.setEnabled(False)
                     return
             
@@ -2673,29 +2603,29 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def add_form():
             index = self.ks_combobox_upload.currentIndex()
             if index == 0:
-                form = PlainTextForm()
+                form = UPlainTextForm()
                 form.inputs_changed.connect(on_text_changed)
-                self.ks_forms.addTab(form, "Plain Text")
+                self.u_ks_forms.addTab(form, "Plain Text")
             elif index == 1:
                 form = TelegramForm()
                 form.inputs_changed.connect(on_text_changed)
-                self.ks_forms.addTab(form, "Telegram")
+                self.u_ks_forms.addTab(form, "Telegram")
             elif index == 2:
                 form = KeyserverURLForm()
                 form.inputs_changed.connect(on_text_changed)
-                self.ks_forms.addTab(form, "Keyserver List")
+                self.u_ks_forms.addTab(form, "Keyserver List")
             elif index == 3:
                 form = VCardForm()
                 form.inputs_changed.connect(on_text_changed)
-                self.ks_forms.addTab(form, "vCard")
+                self.u_ks_forms.addTab(form, "vCard")
             elif index == 4:
                 form = PubkeyForm(self)
                 form.inputs_changed.connect(on_text_changed)
-                self.ks_forms.addTab(form, "PubKey")
+                self.u_ks_forms.addTab(form, "PubKey")
             on_text_changed()
 
         def remove_forms():
-            self.ks_forms.clear()
+            self.u_ks_forms.clear()
         
         add_new_entry.clicked.connect(add_form)
         clear_button = QPushButton(_("&Clear Entries"))
@@ -2714,7 +2644,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         on_text_changed()  # start button off disabled
 
         upload_groupbox.setLayout(upload_grid)
-        
+
         # Download
         download_groupbox = QGroupBox("Download")
 
@@ -2726,18 +2656,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             import requests
             from google.protobuf.json_format import MessageToJson 
             from electroncash.keyserver.addressmetadata_pb2 import Entry, Payload, AddressMetadata
+            from .keyserver.download_forms import construct_download_forms
 
             addr = pick_ks_address(self, True)
             if addr:
-                self.log_download_e.setText("")
-                self.ks_addr_download_e.setText(addr)
-                errors = self.ks_handler.execute(addr)
-                if errors:
-                    msg = self.log_download_e.toPlainText()
-                    msg += "Extraction errors:\n"
-                    for (sample, e) in errors:
-                        msg += "%s; %s\n" % (sample, e)
-                    self.log_download_e.setText(msg)
+                self.d_ks_forms.clear()
+                extracted, errors = self.ks_handler.uniform_aggregate(addr)
+                if extracted is not None:
+                    forms = construct_download_forms(extracted)
+                    self.d_ks_forms.addTab(forms[0], "Overview")
+                    # for form in forms:
+                    
+
 
         msg = _('Address to downloaded from.  Use the tool button on the right to pick a wallet address.')
         description_label = HelpLabel(_('&Address'), msg)
@@ -2749,13 +2679,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         description_label.setBuddy(self.ks_addr_download_e)
         download_grid.addWidget(self.ks_addr_download_e, 1, 1, 1, -1)
 
-        msg = _('Log of events during download.')
-        description_label = HelpLabel(_('&Log'), msg)
-        download_grid.addWidget(description_label, 2, 0)
-        self.log_download_e = QTextEdit()
-        self.log_download_e.setReadOnly(True)
-        description_label.setBuddy(self.log_download_e)
-        download_grid.addWidget(self.log_download_e, 2, 1, 1, -1)
+        self.d_ks_forms = TabWidget(self)
+        download_grid.addWidget(self.d_ks_forms, 2, 0, 1, -1)
 
         download_groupbox.setLayout(download_grid)
 
@@ -2853,7 +2778,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         try:
             # Construct basic metadata from payload text
-            entries = [self.ks_forms.widget(index).construct_entry() for index in range(self.ks_forms.count())]
+            entries = [self.u_ks_forms.widget(index).construct_entry() for index in range(self.u_ks_forms.count())]
             builder = MetadataBuilder(addr, ttl, self._sign_metadata_digest)
             builder.add_entry_batch(entries)
             metadata = builder.build()

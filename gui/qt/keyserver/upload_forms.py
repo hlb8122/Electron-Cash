@@ -3,8 +3,10 @@ from ..util import *
 from electroncash.i18n import _
 from electroncash.keyserver.metadata_tools import *
 
-class KeyserverForm(QWidget):
+
+class UKeyserverForm(QWidget):
     inputs_changed = pyqtSignal()
+
     def is_full(self):
         raise NotImplementedError
 
@@ -15,16 +17,16 @@ class KeyserverForm(QWidget):
         raise NotImplementedError
 
 
-class PlainTextForm(KeyserverForm):
+class UPlainTextForm(UKeyserverForm):
     def __init__(self, *args, **kwargs):
-        super(PlainTextForm, self).__init__(*args, **kwargs)
+        super(UPlainTextForm, self).__init__(*args, **kwargs)
         plain_text_grid = QGridLayout()
         msg = _('Plain text to be uploaded.')
         description_label = HelpLabel(_('&Text'), msg)
-        plain_text_grid.addWidget(description_label, 3, 0)
+        plain_text_grid.addWidget(description_label, 0, 0)
         self.upload_plain_text_e = QTextEdit()
         description_label.setBuddy(self.upload_plain_text_e)
-        plain_text_grid.addWidget(self.upload_plain_text_e, 3, 1, 1, -1)
+        plain_text_grid.addWidget(self.upload_plain_text_e, 0, 1, 1, -1)
 
         self.setLayout(plain_text_grid)
 
@@ -41,16 +43,16 @@ class PlainTextForm(KeyserverForm):
         return plain_text_entry(data)
 
 
-class TelegramForm(KeyserverForm):
+class UTelegramForm(UKeyserverForm):
     def __init__(self, *args, **kwargs):
         super(TelegramForm, self).__init__(*args, **kwargs)
         plain_text_grid = QGridLayout()
         msg = _('Telegram handle to be uploaded.')
         description_label = HelpLabel(_('&Handle'), msg)
-        plain_text_grid.addWidget(description_label, 3, 0)
+        plain_text_grid.addWidget(description_label, 0, 0)
         self.upload_telegram_e = QLineEdit()
         description_label.setBuddy(self.upload_telegram_e)
-        plain_text_grid.addWidget(self.upload_telegram_e, 3, 1, 1, -1)
+        plain_text_grid.addWidget(self.upload_telegram_e, 0, 1, 1, -1)
 
         self.setLayout(plain_text_grid)
 
@@ -66,24 +68,28 @@ class TelegramForm(KeyserverForm):
         text = self.upload_telegram_e.text()
         return telegram_entry(text)
 
-class PubkeyForm(KeyserverForm):
+
+class UPubkeyForm(UKeyserverForm):
     def __init__(self, parent, *args, **kwargs):
-        super(KeyserverForm, self).__init__(*args, **kwargs)
+        super(UKeyserverForm, self).__init__(*args, **kwargs)
         pubkey_grid = QGridLayout()
         self.parent = parent
 
         def pick_address():
             addr = parent._pick_address()
             if addr:
-                self.upload_pubkey_e.setText(self.parent.wallet.get_public_key(addr))
+                self.upload_pubkey_e.setText(
+                    self.parent.wallet.get_public_key(addr))
 
-        msg = _('Pubkey to uploaded.  Use the tool button on the right to pick a wallet address.')
+        msg = _(
+            'Pubkey to uploaded.  Use the tool button on the right to pick a wallet address.')
         description_label = HelpLabel(_('&PubKey'), msg)
         pubkey_grid.addWidget(description_label, 1, 0)
         self.upload_pubkey_e = ButtonsLineEdit()
         self.upload_pubkey_e.setReadOnly(True)
         self.upload_pubkey_e.setPlaceholderText(_("Specify a wallet address"))
-        self.upload_pubkey_e.addButton(":icons/tab_addresses.png", on_click=pick_address, tooltip=_("Pick an address from your wallet"))
+        self.upload_pubkey_e.addButton(
+            ":icons/tab_addresses.png", on_click=pick_address, tooltip=_("Pick an address from your wallet"))
         description_label.setBuddy(self.upload_pubkey_e)
         pubkey_grid.addWidget(self.upload_pubkey_e, 1, 1, 1, -1)
 
@@ -102,16 +108,17 @@ class PubkeyForm(KeyserverForm):
         pubkey = bytes.fromhex(self.upload_pubkey_e.text())
         return pubkey_entry(pubkey)
 
-class KeyserverURLForm(KeyserverForm):
+
+class UKeyserverURLForm(UKeyserverForm):
     def __init__(self, *args, **kwargs):
         super(KeyserverURLForm, self).__init__(*args, **kwargs)
         plain_text_grid = QGridLayout()
         msg = _('Keyserver list to be uploaded. Line delimited.')
         description_label = HelpLabel(_('&Servers'), msg)
-        plain_text_grid.addWidget(description_label, 3, 0)
+        plain_text_grid.addWidget(description_label, 0, 0)
         self.upload_ks_urls_e = QTextEdit()
         description_label.setBuddy(self.upload_ks_urls_e)
-        plain_text_grid.addWidget(self.upload_ks_urls_e, 3, 1, 1, -1)
+        plain_text_grid.addWidget(self.upload_ks_urls_e, 0, 1, 1, -1)
 
         self.setLayout(plain_text_grid)
 
@@ -128,7 +135,7 @@ class KeyserverURLForm(KeyserverForm):
         return ks_urls_entry(urls)
 
 
-class VCardForm(KeyserverForm):
+class UVCardForm(UKeyserverForm):
     def __init__(self, *args, **kwargs):
         super(VCardForm, self).__init__(*args, **kwargs)
         vcard_grid = QGridLayout()
