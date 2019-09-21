@@ -218,3 +218,60 @@ class TabWidget(QTabWidget):
         QTabWidget.__init__(self, *args, **kwargs)
         self.setTabBar(TabBar(self))
         self.setTabPosition(QTabWidget.West)
+
+def pick_ks_address(parent, external=False) -> str:
+    ''' Returns None on user cancel, or a full address string
+    from the Address list. '''
+    from .ks_address_list import KSAddressList
+
+    # Show user address picker
+    d = WindowModalDialog(parent.top_level_window(), _('Choose an address'))
+    d.setObjectName("Window Modal Dialog - " + d.windowTitle())
+    destroyed_print_error(d)  # track object lifecycle
+    d.setMinimumWidth(parent.width()-150)
+    vbox = QVBoxLayout(d)
+    vbox.addWidget(QLabel(_('Choose an address') + ':'))
+    l = KSAddressList(parent)
+    try:
+        l.setObjectName("AddressList - " + d.windowTitle())
+        destroyed_print_error(l)  # track object lifecycle
+        l.update()
+        if external:
+            def on_text_changed(text):
+                nonlocal addr
+                if text != "":
+                    if Address.is_valid(text):
+                        addr = text
+                        ok.setEnabled(True)
+                    else:
+                        ok.setEnabled(False)
+                    l.clearSelection()
+                else:
+                    addr = None
+                    ok.setEnabled(False)
+            text_input = QLineEdit()
+            text_input.textChanged.connect(on_text_changed)
+            vbox.addWidget(text_input)
+        vbox.addWidget(l)
+
+        ok = OkButton(d)
+        ok.setDisabled(True)
+
+        addr = None
+        def on_item_changed(current, previous):
+            nonlocal addr
+            addr = current and current.data(0, l.DataRoles.address)
+            addr = addr.to_full_ui_string()
+            ok.setEnabled(addr is not None)
+        l.currentItemChanged.connect(on_item_changed)
+
+        cancel = CancelButton(d)
+
+        vbox.addLayout(Buttons(cancel, ok))
+
+        res = d.exec_()
+        if res == QDialog.Accepted:
+            return addr
+        return None
+    finally:
+        l.clean_up()  # required to unregister network callback

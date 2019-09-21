@@ -2601,7 +2601,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
     def create_keyserver_tab(self):
-        from .ks_gui import PlainTextForm, TelegramForm, KeyserverURLForm, StealthAddressForm, VCardForm, PubkeyForm, TabWidget
+        from .ks_gui import PlainTextForm, TelegramForm, KeyserverURLForm, StealthAddressForm, VCardForm, PubkeyForm, TabWidget, pick_ks_address
 
         # Create keyserver handler
         self._construct_ks_handler()
@@ -2614,7 +2614,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         upload_grid.setColumnStretch(3, 1)
 
         def pick_address():
-            addr = self._pick_ks_address(False)
+            addr = pick_ks_address(self, False)
             if addr:
                 self.ks_addr_upload_e.setText(addr)
 
@@ -2715,7 +2715,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             from google.protobuf.json_format import MessageToJson 
             from electroncash.keyserver.addressmetadata_pb2 import Entry, Payload, AddressMetadata
 
-            addr = self._pick_ks_address(True)
+            addr = pick_ks_address(self, True)
             if addr:
                 self.log_download_e.setText("")
                 self.ks_addr_download_e.setText(addr)
@@ -5251,65 +5251,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             def on_item_changed(current, previous):
                 nonlocal addr
                 addr = current and current.data(0, l.DataRoles.address)
-                ok.setEnabled(addr is not None)
-            def on_selection_changed():
-                items = l.selectedItems()
-                if items: on_item_changed(items[0], None)
-                else: on_item_changed(None, None)
-            l.currentItemChanged.connect(on_item_changed)
-
-            cancel = CancelButton(d)
-
-            vbox.addLayout(Buttons(cancel, ok))
-
-            res = d.exec_()
-            if res == QDialog.Accepted:
-                return addr
-            return None
-        finally:
-            l.clean_up()  # required to unregister network callback
-
-    def _pick_ks_address(self, external=False) -> Address:
-        ''' Returns None on user cancel, or a full address string
-        from the Address list. '''
-        from .ks_address_list import KSAddressList
-
-        # Show user address picker
-        d = WindowModalDialog(self.top_level_window(), _('Choose an address'))
-        d.setObjectName("Window Modal Dialog - " + d.windowTitle())
-        destroyed_print_error(d)  # track object lifecycle
-        d.setMinimumWidth(self.width()-150)
-        vbox = QVBoxLayout(d)
-        vbox.addWidget(QLabel(_('Choose an address') + ':'))
-        l = KSAddressList(self)
-        try:
-            l.setObjectName("AddressList - " + d.windowTitle())
-            destroyed_print_error(l)  # track object lifecycle
-            l.update()
-            if external:
-                def on_text_changed(text):
-                    nonlocal addr
-                    if text != "":
-                        # TODO: Validation here
-                        addr = text
-                        ok.setEnabled(True)
-                        l.clearSelection()
-                    else:
-                        addr = None
-                        ok.setEnabled(False)
-                text_input = QLineEdit()
-                text_input.textChanged.connect(on_text_changed)
-                vbox.addWidget(text_input)
-            vbox.addWidget(l)
-
-            ok = OkButton(d)
-            ok.setDisabled(True)
-
-            addr = None
-            def on_item_changed(current, previous):
-                nonlocal addr
-                addr = current and current.data(0, l.DataRoles.address)
-                addr = addr.to_full_ui_string()
                 ok.setEnabled(addr is not None)
             def on_selection_changed():
                 items = l.selectedItems()
