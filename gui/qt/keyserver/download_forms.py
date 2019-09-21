@@ -87,7 +87,7 @@ class OverviewForm(QWidget):
         description_label.setBuddy(dt_text_e)
         overview_grid.addWidget(dt_text_e, 1, 1, 1, -1)
 
-        msg = _('Expiry time the item.')
+        msg = _('Expiry time of the metadata.')
         description_label = HelpLabel(_('&Expiry'), msg)
         overview_grid.addWidget(description_label, 2, 0)
         expiry_text_e = QLineEdit()
@@ -109,7 +109,7 @@ class OverviewForm(QWidget):
         description_label.setBuddy(confidence_text_e)
         overview_grid.addWidget(confidence_text_e, 3, 1, 1, -1)
 
-        msg = _('Public Key of the address.')
+        msg = _('Public key of the address.')
         description_label = HelpLabel(_('&Public Key'), msg)
         overview_grid.addWidget(description_label, 4, 0)
         public_key_text_e = QLineEdit()
@@ -246,7 +246,7 @@ class DPubKeyForm(QWidget):
         super(DPubKeyForm, self).__init__(*args, **kwargs)
         pubkey_grid = QGridLayout()
 
-        msg = _('Plain text contained in the entry.')
+        msg = _('Public key contained in the entry.')
         description_label = HelpLabel(_('&Public Key'), msg)
         pubkey_grid.addWidget(description_label, 0, 0)
         upload_pubkey_e = QLineEdit()
