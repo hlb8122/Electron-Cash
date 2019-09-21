@@ -45,7 +45,7 @@ class UPlainTextForm(UKeyserverForm):
 
 class UTelegramForm(UKeyserverForm):
     def __init__(self, *args, **kwargs):
-        super(TelegramForm, self).__init__(*args, **kwargs)
+        super(UTelegramForm, self).__init__(*args, **kwargs)
         plain_text_grid = QGridLayout()
         msg = _('Telegram handle to be uploaded.')
         description_label = HelpLabel(_('&Handle'), msg)
@@ -71,7 +71,7 @@ class UTelegramForm(UKeyserverForm):
 
 class UPubkeyForm(UKeyserverForm):
     def __init__(self, parent, *args, **kwargs):
-        super(UKeyserverForm, self).__init__(*args, **kwargs)
+        super(UPubkeyForm, self).__init__(*args, **kwargs)
         pubkey_grid = QGridLayout()
         self.parent = parent
 
@@ -82,7 +82,7 @@ class UPubkeyForm(UKeyserverForm):
                     self.parent.wallet.get_public_key(addr))
 
         msg = _(
-            'Pubkey to uploaded.  Use the tool button on the right to pick a wallet address.')
+            'Public key to uploaded.  Use the tool button on the right to pick a wallet address.')
         description_label = HelpLabel(_('&PubKey'), msg)
         pubkey_grid.addWidget(description_label, 1, 0)
         self.upload_pubkey_e = ButtonsLineEdit()
@@ -111,7 +111,7 @@ class UPubkeyForm(UKeyserverForm):
 
 class UKeyserverURLForm(UKeyserverForm):
     def __init__(self, *args, **kwargs):
-        super(KeyserverURLForm, self).__init__(*args, **kwargs)
+        super(UKeyserverURLForm, self).__init__(*args, **kwargs)
         plain_text_grid = QGridLayout()
         msg = _('Keyserver list to be uploaded. Line delimited.')
         description_label = HelpLabel(_('&Servers'), msg)
@@ -122,7 +122,7 @@ class UKeyserverURLForm(UKeyserverForm):
 
         self.setLayout(plain_text_grid)
 
-        self.upload_pubkey_e.textChanged.connect(self.inputs_changed.emit)
+        self.upload_ks_urls_e.textChanged.connect(self.inputs_changed.emit)
 
     def is_full(self):
         return bool(self.upload_ks_urls_e.toPlainText())
@@ -137,7 +137,7 @@ class UKeyserverURLForm(UKeyserverForm):
 
 class UVCardForm(UKeyserverForm):
     def __init__(self, *args, **kwargs):
-        super(VCardForm, self).__init__(*args, **kwargs)
+        super(UVCardForm, self).__init__(*args, **kwargs)
         vcard_grid = QGridLayout()
 
         msg = _('Name of contact.')

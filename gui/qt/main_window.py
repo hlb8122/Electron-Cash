@@ -2585,7 +2585,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         upload_grid.addWidget(self.u_ks_forms, 4, 0, 1, -1)
 
         def on_text_changed():
-            # TODO: More validation here.
             addr_is_some = bool(self.ks_addr_upload_e.text())
             ttl_is_some = bool(self.ks_ttl_upload_e.text())
 
@@ -2607,19 +2606,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 form.inputs_changed.connect(on_text_changed)
                 self.u_ks_forms.addTab(form, "Plain Text")
             elif index == 1:
-                form = TelegramForm()
+                form = UTelegramForm()
                 form.inputs_changed.connect(on_text_changed)
                 self.u_ks_forms.addTab(form, "Telegram")
             elif index == 2:
-                form = KeyserverURLForm()
+                form = UKeyserverURLForm()
                 form.inputs_changed.connect(on_text_changed)
                 self.u_ks_forms.addTab(form, "Keyserver List")
             elif index == 3:
-                form = VCardForm()
+                form = UVCardForm()
                 form.inputs_changed.connect(on_text_changed)
                 self.u_ks_forms.addTab(form, "vCard")
             elif index == 4:
-                form = PubkeyForm(self)
+                form = UPubkeyForm(self)
                 form.inputs_changed.connect(on_text_changed)
                 self.u_ks_forms.addTab(form, "PubKey")
             on_text_changed()
@@ -2663,11 +2662,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.d_ks_forms.clear()
                 extracted, errors = self.ks_handler.uniform_aggregate(addr)
                 if extracted is not None:
-                    forms = construct_download_forms(extracted)
-                    self.d_ks_forms.addTab(forms[0], "Overview")
-                    # for form in forms:
-                    
-
+                    forms = construct_download_forms(self, extracted)
+                    for form in forms:
+                        self.d_ks_forms.addTab(form, form.name)
 
         msg = _('Address to downloaded from.  Use the tool button on the right to pick a wallet address.')
         description_label = HelpLabel(_('&Address'), msg)
