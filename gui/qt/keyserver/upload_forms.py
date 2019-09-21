@@ -79,6 +79,7 @@ class UPubkeyForm(UKeyserverForm):
             from .address_list import pick_ks_address
             addr = pick_ks_address(parent)
             if addr:
+                addr = Address.from_string(addr)
                 self.upload_pubkey_e.setText(
                     self.parent.wallet.get_public_key(addr))
 
