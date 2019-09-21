@@ -1,17 +1,10 @@
-from electroncash.keyserver.metadata_tools import *
-from electroncash.i18n import _
-
 from PyQt5.QtWidgets import *
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
-from .util import *
-
-
-def telegram_executor(handle: str):
-    QDesktopServices.openUrl(QUrl("https://t.me/" + handle))
-
+from ..util import *
+from electroncash.i18n import _
+from electroncash.keyserver.metadata_tools import *
 
 class KeyserverForm(QWidget):
+    inputs_changed = pyqtSignal()
     def is_full(self):
         raise NotImplementedError
 
@@ -32,7 +25,10 @@ class PlainTextForm(KeyserverForm):
         self.upload_plain_text_e = QTextEdit()
         description_label.setBuddy(self.upload_plain_text_e)
         plain_text_grid.addWidget(self.upload_plain_text_e, 3, 1, 1, -1)
+
         self.setLayout(plain_text_grid)
+
+        self.upload_plain_text_e.textChanged.connect(self.inputs_changed.emit)
 
     def is_full(self):
         return bool(self.upload_plain_text_e.toPlainText())
@@ -55,7 +51,10 @@ class TelegramForm(KeyserverForm):
         self.upload_telegram_e = QLineEdit()
         description_label.setBuddy(self.upload_telegram_e)
         plain_text_grid.addWidget(self.upload_telegram_e, 3, 1, 1, -1)
+
         self.setLayout(plain_text_grid)
+
+        self.upload_telegram_e.textChanged.connect(self.inputs_changed.emit)
 
     def is_full(self):
         return bool(self.upload_telegram_e.text())
@@ -90,6 +89,9 @@ class PubkeyForm(KeyserverForm):
 
         self.setLayout(pubkey_grid)
 
+        self.upload_pubkey_e.textChanged.connect(self.inputs_changed.emit)
+        self.upload_pubkey_e.textChanged.connect(self.inputs_changed.emit)
+
     def is_full(self):
         return bool(self.upload_pubkey_e.text())
 
@@ -110,7 +112,10 @@ class KeyserverURLForm(KeyserverForm):
         self.upload_ks_urls_e = QTextEdit()
         description_label.setBuddy(self.upload_ks_urls_e)
         plain_text_grid.addWidget(self.upload_ks_urls_e, 3, 1, 1, -1)
+
         self.setLayout(plain_text_grid)
+
+        self.upload_pubkey_e.textChanged.connect(self.inputs_changed.emit)
 
     def is_full(self):
         return bool(self.upload_ks_urls_e.toPlainText())
@@ -121,21 +126,6 @@ class KeyserverURLForm(KeyserverForm):
     def construct_entry(self):
         urls = self.upload_ks_urls_e.toPlainText().split("\n")
         return ks_urls_entry(urls)
-
-
-# TODO
-class StealthAddressForm(KeyserverForm):
-    def __init__(self, *args, **kwargs):
-        super(StealthAddressForm, self).__init__(*args, **kwargs)
-
-    def is_full(self):
-        return bool(self.upload_telegram_e.text())
-
-    def clear(self):
-        pass
-
-    def _get_data(self):
-        return None
 
 
 class VCardForm(KeyserverForm):
@@ -166,6 +156,10 @@ class VCardForm(KeyserverForm):
 
         self.setLayout(vcard_grid)
 
+        self.upload_vName_e.textChanged.connect(self.inputs_changed.emit)
+        self.upload_vMobile_e.textChanged.connect(self.inputs_changed.emit)
+        self.upload_vEmail_e.textChanged.connect(self.inputs_changed.emit)
+
     def is_full(self):
         # Name is required
         return bool(self.upload_vName_e.text())
@@ -182,96 +176,3 @@ class VCardForm(KeyserverForm):
             "email": self.upload_vEmail_e.text()
         }
         return vcard_entry(card)
-
-
-class TabBar(QTabBar):
-    def tabSizeHint(self, index):
-        s = QTabBar.tabSizeHint(self, index)
-        s.transpose()
-        return s
-
-    def paintEvent(self, event):
-        painter = QStylePainter(self)
-        opt = QStyleOptionTab()
-
-        for i in range(self.count()):
-            self.initStyleOption(opt, i)
-            painter.drawControl(QStyle.CE_TabBarTabShape, opt)
-            painter.save()
-
-            s = opt.rect.size()
-            s.transpose()
-            r = QRect(QPoint(), s)
-            r.moveCenter(opt.rect.center())
-            opt.rect = r
-
-            c = self.tabRect(i).center()
-            painter.translate(c)
-            painter.rotate(90)
-            painter.translate(-c)
-            painter.drawControl(QStyle.CE_TabBarTabLabel, opt)
-            painter.restore()
-
-
-class TabWidget(QTabWidget):
-    def __init__(self, *args, **kwargs):
-        QTabWidget.__init__(self, *args, **kwargs)
-        self.setTabBar(TabBar(self))
-        self.setTabPosition(QTabWidget.West)
-
-def pick_ks_address(parent, external=False) -> str:
-    ''' Returns None on user cancel, or a full address string
-    from the Address list. '''
-    from .ks_address_list import KSAddressList
-
-    # Show user address picker
-    d = WindowModalDialog(parent.top_level_window(), _('Choose an address'))
-    d.setObjectName("Window Modal Dialog - " + d.windowTitle())
-    destroyed_print_error(d)  # track object lifecycle
-    d.setMinimumWidth(parent.width()-150)
-    vbox = QVBoxLayout(d)
-    vbox.addWidget(QLabel(_('Choose an address') + ':'))
-    l = KSAddressList(parent)
-    try:
-        l.setObjectName("AddressList - " + d.windowTitle())
-        destroyed_print_error(l)  # track object lifecycle
-        l.update()
-        if external:
-            def on_text_changed(text):
-                nonlocal addr
-                if text != "":
-                    if Address.is_valid(text):
-                        addr = text
-                        ok.setEnabled(True)
-                    else:
-                        ok.setEnabled(False)
-                    l.clearSelection()
-                else:
-                    addr = None
-                    ok.setEnabled(False)
-            text_input = QLineEdit()
-            text_input.textChanged.connect(on_text_changed)
-            vbox.addWidget(text_input)
-        vbox.addWidget(l)
-
-        ok = OkButton(d)
-        ok.setDisabled(True)
-
-        addr = None
-        def on_item_changed(current, previous):
-            nonlocal addr
-            addr = current and current.data(0, l.DataRoles.address)
-            addr = addr.to_full_ui_string()
-            ok.setEnabled(addr is not None)
-        l.currentItemChanged.connect(on_item_changed)
-
-        cancel = CancelButton(d)
-
-        vbox.addLayout(Buttons(cancel, ok))
-
-        res = d.exec_()
-        if res == QDialog.Accepted:
-            return addr
-        return None
-    finally:
-        l.clean_up()  # required to unregister network callback

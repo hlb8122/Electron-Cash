@@ -26,10 +26,10 @@
 from functools import partial
 from collections import defaultdict
 
-from .util import MyTreeWidget, MONOSPACE_FONT, SortableTreeWidgetItem, rate_limited, webopen
+from ..util import *
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QKeySequence, QCursor, QIcon
-from PyQt5.QtWidgets import QTreeWidgetItem, QAbstractItemView, QMenu, QToolTip
+from PyQt5.QtWidgets import *
 from electroncash.i18n import _
 from electroncash.address import Address
 from electroncash.plugins import run_hook
@@ -37,7 +37,8 @@ import electroncash.web as web
 from electroncash.util import profiler
 from electroncash import networks
 from enum import IntEnum
-from . import cashacctqt
+from .. import cashacctqt
+
 
 class KSAddressList(MyTreeWidget):
     filter_columns = [0, 1]  # Address, Label, Balance
@@ -46,9 +47,9 @@ class KSAddressList(MyTreeWidget):
     _cashacct_icon = None
 
     class DataRoles(IntEnum):
-        address        = Qt.UserRole + 0
+        address = Qt.UserRole + 0
         can_edit_label = Qt.UserRole + 1
-        cash_accounts  = Qt.UserRole + 2
+        cash_accounts = Qt.UserRole + 2
 
     def __init__(self, parent):
         super().__init__(parent, lambda x: None, [], 2, deferred_updates=True)
@@ -66,22 +67,31 @@ class KSAddressList(MyTreeWidget):
         self._ca_minimal_chash_updated_signal.connect(self._ca_update_chash)
 
         self.parent.gui_object.cashaddr_toggled_signal.connect(self.update)
-        self.parent.ca_address_default_changed_signal.connect(self._ca_on_address_default_change)
+        self.parent.ca_address_default_changed_signal.connect(
+            self._ca_on_address_default_change)
 
         if not __class__._cashacct_icon:
             # lazy init the icon
-            __class__._cashacct_icon = QIcon(":icons/cashacct-logo.png")  # TODO: make this an SVG
+            __class__._cashacct_icon = QIcon(
+                ":icons/cashacct-logo.png")  # TODO: make this an SVG
 
     def clean_up(self):
         self.cleaned_up = True
         if self.wallet.network:
-            self.wallet.network.unregister_callback(self._ca_updated_minimal_chash_callback)
+            self.wallet.network.unregister_callback(
+                self._ca_updated_minimal_chash_callback)
             self._ca_cb_registered = False
         # paranoia -- we have seen Qt not clean up the signal before the object is destroyed on Python 3.7.3 PyQt 5.12.3, see #1531
-        try: self.parent.gui_object.cashaddr_toggled_signal.disconnect(self.update)
-        except TypeError: pass
-        try: self.parent.ca_address_default_changed_signal.disconnect(self._ca_on_address_default_change)
-        except TypeError: pass
+        try:
+            self.parent.gui_object.cashaddr_toggled_signal.disconnect(
+                self.update)
+        except TypeError:
+            pass
+        try:
+            self.parent.ca_address_default_changed_signal.disconnect(
+                self._ca_on_address_default_change)
+        except TypeError:
+            pass
 
     def filter(self, p):
         ''' Reimplementation from superclass filter.  Chops off the
@@ -94,13 +104,14 @@ class KSAddressList(MyTreeWidget):
         super().filter(p)  # call super on chopped-off-piece
 
     def refresh_headers(self):
-        headers = [ _('Address'), _('Index'),_('Label')]
+        headers = [_('Address'), _('Index'), _('Label')]
         fx = self.parent.fx
         if fx and fx.get_fiat_address_config():
             headers.insert(4, '{} {}'.format(fx.get_currency(), _('Balance')))
         self.update_headers(headers)
 
-    @rate_limited(1.0, ts_after=True) # We rate limit the address list refresh no more than once every second
+    # We rate limit the address list refresh no more than once every second
+    @rate_limited(1.0, ts_after=True)
     def update(self):
         if self.cleaned_up:
             # short-cut return if window was closed and wallet is stopped
@@ -109,8 +120,9 @@ class KSAddressList(MyTreeWidget):
 
     @profiler
     def on_update(self):
-        def item_path(item): # Recursively builds the path for an item eg 'parent_name/item_name'
+        def item_path(item):  # Recursively builds the path for an item eg 'parent_name/item_name'
             return item.text(0) if not item.parent() else item_path(item.parent()) + "/" + item.text(0)
+
         def remember_expanded_items(root):
             # Save the set of expanded items... so that address list updates don't annoyingly collapse
             # our tree list widget due to the update. This function recurses. Pass self.invisibleRootItem().
@@ -120,23 +132,28 @@ class KSAddressList(MyTreeWidget):
                 if it and it.childCount():
                     if it.isExpanded():
                         expanded_item_names.add(item_path(it))
-                    expanded_item_names |= remember_expanded_items(it) # recurse
+                    expanded_item_names |= remember_expanded_items(
+                        it)  # recurse
             return expanded_item_names
+
         def restore_expanded_items(root, expanded_item_names):
             # Recursively restore the expanded state saved previously. Pass self.invisibleRootItem().
             for i in range(0, root.childCount()):
                 it = root.child(i)
                 if it and it.childCount():
-                    restore_expanded_items(it, expanded_item_names) # recurse, do leaves first
+                    # recurse, do leaves first
+                    restore_expanded_items(it, expanded_item_names)
                     old = bool(it.isExpanded())
                     new = bool(item_path(it) in expanded_item_names)
                     if old != new:
                         it.setExpanded(new)
         if not self._ca_cb_registered and self.wallet.network:
-            self.wallet.network.register_callback(self._ca_updated_minimal_chash_callback, ['ca_updated_minimal_chash'])
+            self.wallet.network.register_callback(
+                self._ca_updated_minimal_chash_callback, ['ca_updated_minimal_chash'])
             self._ca_cb_registered = True
         sels = self.selectedItems()
-        addresses_to_re_select = {item.data(0, self.DataRoles.address) for item in sels}
+        addresses_to_re_select = {
+            item.data(0, self.DataRoles.address) for item in sels}
         expanded_item_names = remember_expanded_items(self.invisibleRootItem())
         del sels  # avoid keeping reference to about-to-be delete C++ objects
         self.clear()
@@ -180,10 +197,12 @@ class KSAddressList(MyTreeWidget):
             if ca_list:
                 # Add Cash Account emoji -- the emoji used is the most
                 # recent cash account registration for said address
-                ca_list.sort(key=lambda x: ((x.number or 0), str(x.collision_hash)))
+                ca_list.sort(key=lambda x: (
+                    (x.number or 0), str(x.collision_hash)))
                 for ca in ca_list:
                     # grab minimal_chash and stash in an attribute. this may kick off the network
-                    ca.minimal_chash = self.wallet.cashacct.get_minimal_chash(ca.name, ca.number, ca.collision_hash)
+                    ca.minimal_chash = self.wallet.cashacct.get_minimal_chash(
+                        ca.name, ca.number, ca.collision_hash)
                 ca_info = self._ca_get_default(ca_list)
                 if ca_info:
                     address_text = ca_info.emoji + " " + address_text
@@ -210,7 +229,8 @@ class KSAddressList(MyTreeWidget):
 
             # Set UserRole data items:
             address_item.setData(0, self.DataRoles.address, address)
-            address_item.setData(0, self.DataRoles.can_edit_label, True) # label can be edited
+            # label can be edited
+            address_item.setData(0, self.DataRoles.can_edit_label, True)
             if ca_list:
                 # Save the list of cashacct infos, if any
                 address_item.setData(0, self.DataRoles.cash_accounts, ca_list)
@@ -230,7 +250,8 @@ class KSAddressList(MyTreeWidget):
 
     def keyPressEvent(self, event):
         if event.matches(QKeySequence.Copy) and self.currentColumn() == 0:
-            addrs = [i.data(0, self.DataRoles.address) for i in self.selectedItems()]
+            addrs = [i.data(0, self.DataRoles.address)
+                     for i in self.selectedItems()]
             if addrs and isinstance(addrs[0], Address):
                 text = addrs[0].to_full_ui_string()
                 self.parent.app.clipboard().setText(text)
@@ -240,13 +261,15 @@ class KSAddressList(MyTreeWidget):
     def update_labels(self):
         if self.should_defer_update_incr():
             return
+
         def update_recurse(root):
             child_count = root.childCount()
             for i in range(child_count):
                 item = root.child(i)
                 addr = item.data(0, self.DataRoles.address)
                 if isinstance(addr, Address):
-                    label = self.wallet.labels.get(addr.to_storage_string(), '')
+                    label = self.wallet.labels.get(
+                        addr.to_storage_string(), '')
                     item.setText(2, label)
                 if item.childCount():
                     update_recurse(item)
@@ -275,13 +298,14 @@ class KSAddressList(MyTreeWidget):
         Kicked off by a get_minimal_chash() call that results in a cache miss. '''
         if self.cleaned_up:
             return
-        items = self.findItems(ca_info.address.to_ui_string(), Qt.MatchContains|Qt.MatchWrap|Qt.MatchRecursive, 0) or []
+        items = self.findItems(ca_info.address.to_ui_string(
+        ), Qt.MatchContains | Qt.MatchWrap | Qt.MatchRecursive, 0) or []
         for item in items:  # really items should contain just 1 element...
             ca_list = item.data(0, self.DataRoles.cash_accounts) or []
             ca_info_default = self._ca_get_default(ca_list)
             for ca_info_saved in ca_list:
-                if ( (ca_info_saved.name.lower(), ca_info_saved.number, ca_info_saved.collision_hash)
-                        == (ca_info.name.lower(), ca_info.number, ca_info.collision_hash) ):
+                if ((ca_info_saved.name.lower(), ca_info_saved.number, ca_info_saved.collision_hash)
+                        == (ca_info.name.lower(), ca_info.number, ca_info.collision_hash)):
                     ca_info_saved.minimal_chash = minimal_chash  # save minimal_chash as a property
                     if ca_info_saved == ca_info_default:
                         # this was the default one, also set the tooltip
@@ -299,13 +323,73 @@ class KSAddressList(MyTreeWidget):
         ''' Alias for self.wallet.cashacct.get_address_default '''
         return self.wallet.cashacct.get_address_default(ca_list)
 
-    def _ca_set_default(self, ca_info, show_tip = False):
+    def _ca_set_default(self, ca_info, show_tip=False):
         ''' Similar to self.wallet.cashacct.set_address_default, but also
         shows a tooltip optionally, and updates self. '''
         self.wallet.cashacct.set_address_default(ca_info)
         if show_tip:
-            QToolTip.showText(QCursor.pos(), _("Cash Account has been made the default for this address"), self)
-        self.parent.ca_address_default_changed_signal.emit(ca_info)  # eventually calls self.update
+            QToolTip.showText(QCursor.pos(), _(
+                "Cash Account has been made the default for this address"), self)
+        self.parent.ca_address_default_changed_signal.emit(
+            ca_info)  # eventually calls self.update
 
     def _ca_on_address_default_change(self, ignored):
         self.update()
+
+
+def pick_ks_address(parent, external=False) -> str:
+    ''' Returns None on user cancel, or a full address string
+    from the Address list. '''
+
+    # Show user address picker
+    d = WindowModalDialog(parent.top_level_window(), _('Choose an address'))
+    d.setObjectName("Window Modal Dialog - " + d.windowTitle())
+    destroyed_print_error(d)  # track object lifecycle
+    d.setMinimumWidth(parent.width()-150)
+    vbox = QVBoxLayout(d)
+    vbox.addWidget(QLabel(_('Choose an address') + ':'))
+    l = KSAddressList(parent)
+    try:
+        l.setObjectName("AddressList - " + d.windowTitle())
+        destroyed_print_error(l)  # track object lifecycle
+        l.update()
+        if external:
+            def on_text_changed(text):
+                nonlocal addr
+                if text != "":
+                    if Address.is_valid(text):
+                        addr = text
+                        ok.setEnabled(True)
+                    else:
+                        ok.setEnabled(False)
+                    l.clearSelection()
+                else:
+                    addr = None
+                    ok.setEnabled(False)
+            text_input = QLineEdit()
+            text_input.textChanged.connect(on_text_changed)
+            vbox.addWidget(text_input)
+        vbox.addWidget(l)
+
+        ok = OkButton(d)
+        ok.setDisabled(True)
+
+        addr = None
+
+        def on_item_changed(current, previous):
+            nonlocal addr
+            addr = current and current.data(0, l.DataRoles.address)
+            addr = addr.to_full_ui_string()
+            ok.setEnabled(addr is not None)
+        l.currentItemChanged.connect(on_item_changed)
+
+        cancel = CancelButton(d)
+
+        vbox.addLayout(Buttons(cancel, ok))
+
+        res = d.exec_()
+        if res == QDialog.Accepted:
+            return addr
+        return None
+    finally:
+        l.clean_up()  # required to unregister network callback

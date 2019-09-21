@@ -2531,7 +2531,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def _construct_ks_handler(self):
         from electroncash.keyserver.metadata_tools import plain_text_extractor, ks_urls_extractor, vcard_extractor, pubkey_extractor
         from electroncash.keyserver.handler import KSHandler
-        from .ks_gui import telegram_executor
+        from .keyserver.executors import telegram_executor
         self.ks_handler = KSHandler()
 
         # Add executors
@@ -2601,8 +2601,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
     def create_keyserver_tab(self):
-        from .ks_gui import PlainTextForm, TelegramForm, KeyserverURLForm, StealthAddressForm, VCardForm, PubkeyForm, TabWidget, pick_ks_address
-
+        from .keyserver.upload_forms import PlainTextForm, TelegramForm, KeyserverURLForm, VCardForm, PubkeyForm
+        from .keyserver.tab_bar import TabWidget
+        from .keyserver.address_list import pick_ks_address
         # Create keyserver handler
         self._construct_ks_handler()
 
@@ -2653,29 +2654,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.ks_forms = TabWidget(self)
         upload_grid.addWidget(self.ks_forms, 4, 0, 1, -1)
 
-        def add_form():
-            index = self.ks_combobox_upload.currentIndex()
-            if index == 0:
-                self.ks_forms.addTab(PlainTextForm(), "Plain Text")
-            elif index == 1:
-                self.ks_forms.addTab(TelegramForm(), "Telegram")
-            elif index == 2:
-                self.ks_forms.addTab(KeyserverURLForm(), "Keyserver List")
-            elif index == 3:
-                self.ks_forms.addTab(VCardForm(), "vCard")
-            elif index == 4:
-                self.ks_forms.addTab(PubkeyForm(self), "PubKey")
-
-        def remove_forms():
-            self.ks_forms.clear()
-        
-        add_new_entry.clicked.connect(add_form)
-        clear_button = QPushButton(_("&Clear Entries"))
-        clear_button.clicked.connect(remove_forms)
-
-        upload_button = EnterButton(_("&Upload"), self.payfor_put)
-        upload_grid.addLayout(Buttons(clear_button, upload_button), 5, 1, 1, 3)
-
         def on_text_changed():
             # TODO: More validation here.
             addr_is_some = bool(self.ks_addr_upload_e.text())
@@ -2691,6 +2669,40 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     return
             
             upload_button.setEnabled(True)
+
+        def add_form():
+            index = self.ks_combobox_upload.currentIndex()
+            if index == 0:
+                form = PlainTextForm()
+                form.inputs_changed.connect(on_text_changed)
+                self.ks_forms.addTab(form, "Plain Text")
+            elif index == 1:
+                form = TelegramForm()
+                form.inputs_changed.connect(on_text_changed)
+                self.ks_forms.addTab(form, "Telegram")
+            elif index == 2:
+                form = KeyserverURLForm()
+                form.inputs_changed.connect(on_text_changed)
+                self.ks_forms.addTab(form, "Keyserver List")
+            elif index == 3:
+                form = VCardForm()
+                form.inputs_changed.connect(on_text_changed)
+                self.ks_forms.addTab(form, "vCard")
+            elif index == 4:
+                form = PubkeyForm(self)
+                form.inputs_changed.connect(on_text_changed)
+                self.ks_forms.addTab(form, "PubKey")
+            on_text_changed()
+
+        def remove_forms():
+            self.ks_forms.clear()
+        
+        add_new_entry.clicked.connect(add_form)
+        clear_button = QPushButton(_("&Clear Entries"))
+        clear_button.clicked.connect(remove_forms)
+
+        upload_button = EnterButton(_("&Upload"), self.payfor_put)
+        upload_grid.addLayout(Buttons(clear_button, upload_button), 5, 1, 1, 3)
 
         def on_clear():
             self.ks_addr_upload_e.clear()
