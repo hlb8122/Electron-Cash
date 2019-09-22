@@ -90,7 +90,7 @@ def encrypt_entries(entries, src_key, dest_ser, signer=sign_ecdsa):
     # the secret.  H(sP + eP) rather than H(eP) 
     return bytes(msg.SerializeToString())
 
-def decrypt_entries(msg, dest_key):
+def decrypt_entries(msg, fetch_priv_from_pub):
     assert_bytes(msg)
     msg = Message.FromString(msg)
     # Verify signature
@@ -107,10 +107,13 @@ def decrypt_entries(msg, dest_key):
         raise Exception('invalid signature')
 
     payload = Payload.FromString(msg.payload)
+    dest_pubkey = payload.destination
+    privkey = fetch_priv_from_pub(dest_pubkey)
+    payload = Payload.FromString(msg.payload)
     entries = decrypt(payload.entries,
-                      dest_key.privkey.secret_multiplier,
+                      privkey.secret_multiplier,
                       src_key_pk,
                       payload.secret_seed)
     decoded_entries = Entries.FromString(entries)
 
-    return (msg, payload.timestamp, decoded_entries.entries)
+    return payload.timestamp, decoded_entries.entries

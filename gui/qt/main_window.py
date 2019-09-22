@@ -2528,6 +2528,28 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.contact_list = l = ContactList(self)
         return self.create_list_tab(l)
 
+    @protected
+    def decrypt_w2w_msg(self, password: str):
+        import base64
+        from electroncash.keyserver.messaging_pb2 import Message, Payload
+        from electroncash.keyserver.w2w_messages import decrypt_entries
+        from electroncash.bitcoin import regenerate_key
+        from datetime import datetime
+        raw_msg = base64.b64decode(self.w2w_cipher_text_e.toPlainText())
+
+        def fetch_priv_from_pub(pubkey):
+            # TODO: Refactor crypto library to make this easier?
+            addr = Address.from_pubkey(pubkey)
+            index = self.wallet.get_address_index(addr)
+            pk, _ = self.wallet.keystore.get_private_key(index, password)
+            return regenerate_key(pk).privkey
+
+        timestamp, entries = decrypt_entries(raw_msg, fetch_priv_from_pub)
+        messages = "Timestamp: " + datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S') + "\n"
+        messages += "Messages:\n" + "\n".join([entry.entry_data.decode() for entry in entries if entry.kind == "text_utf8"])
+        self.msg_box(QMessageBox.Information, None, "Message" , messages)
+        
+
     def create_keyserver_tab(self):
         from .keyserver.upload_forms import UPlainTextForm, UTelegramForm, UKeyserverURLForm, UVCardForm, UPubkeyForm
         from .keyserver.tab_bar import TabWidget
@@ -2703,14 +2725,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         description_label.setBuddy(self.w2w_cipher_text_e)
         tool_grid.addWidget(self.w2w_cipher_text_e, 0, 1, 1, -1)
 
-        def decrypt_w2w_msg():
-            import base64
-            from electroncash.keyserver.messaging_pb2 import Message
-            message = Message.FromString(base64.b64decode(self.w2w_cipher_text_e.toPlainText()))
-            print(message)
-
         decrypt = QPushButton(_("&Decrypt"))
-        decrypt.clicked.connect(decrypt_w2w_msg)
+        decrypt.clicked.connect(lambda: self.decrypt_w2w_msg())
         tool_grid.addLayout(Buttons(decrypt), 1, 1, 1, -1)
 
         tools_groupbox.setContentLayout(tool_grid)
