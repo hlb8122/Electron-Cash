@@ -2544,7 +2544,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         upload_grid.setSpacing(8)
         upload_grid.setColumnStretch(3, 1)
 
-        def pick_address():
+        def pick_address_upload():
             addr = pick_ks_address(self, False)
             if addr:
                 self.ks_addr_upload_e.setText(addr)
@@ -2555,7 +2555,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.ks_addr_upload_e = ButtonsLineEdit()
         self.ks_addr_upload_e.setReadOnly(True)
         self.ks_addr_upload_e.setPlaceholderText(_("Specify a wallet address"))
-        self.ks_addr_upload_e.addButton(":icons/tab_addresses.png", on_click=pick_address, tooltip=_("Pick an address from your wallet"))
+        self.ks_addr_upload_e.addButton(":icons/tab_addresses.png", on_click=pick_address_upload, tooltip=_("Pick an address from your wallet"))
         description_label.setBuddy(self.ks_addr_upload_e)
         upload_grid.addWidget(self.ks_addr_upload_e, 1, 1, 1, -1)
 
@@ -2659,6 +2659,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
             addr = pick_ks_address(self, True)
             if addr:
+                self.ks_addr_download_e.setText(addr)
                 self.d_ks_forms.clear()
                 extracted, errors = self.ks_handler.uniform_aggregate(addr)
                 if extracted is not None:
