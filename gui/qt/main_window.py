@@ -2622,6 +2622,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 form = UPubkeyForm(self)
                 form.inputs_changed.connect(on_text_changed)
                 self.u_ks_forms.addTab(form, "PubKey")
+
+            new_index = self.u_ks_forms.count() - 1
+            self.u_ks_forms.setCurrentIndex(new_index)
+
             on_text_changed()
 
         def remove_forms():
