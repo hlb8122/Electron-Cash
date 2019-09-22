@@ -53,14 +53,9 @@ class CollapsibleBox(QtWidgets.QWidget):
         )
         self.toggle_animation.start()
 
-    def setContentLayout(self, layout):
-        lay = self.content_area.layout()
-        del lay
-        self.content_area.setLayout(layout)
-        collapsed_height = (
-            self.sizeHint().height() - self.content_area.maximumHeight()
-        )
-        content_height = layout.sizeHint().height()
+    def _refresh_animation_bounds(self):
+        collapsed_height = self.init_size_hint - self.init_max_area
+        content_height = self.content_area.layout().sizeHint().height()
         for i in range(self.toggle_animation.animationCount()):
             animation = self.toggle_animation.animationAt(i)
             animation.setDuration(250)
@@ -73,3 +68,18 @@ class CollapsibleBox(QtWidgets.QWidget):
         content_animation.setDuration(250)
         content_animation.setStartValue(0)
         content_animation.setEndValue(content_height)
+
+    def resize(self):
+        self._refresh_animation_bounds()
+        height = self.content_area.layout().sizeHint().height() + self.init_size_hint - self.init_max_area
+        self.setMinimumHeight(height)
+        self.setMaximumHeight(height)
+        self.content_area.setMaximumHeight(height)
+
+    def setContentLayout(self, layout):
+        lay = self.content_area.layout()
+        del lay
+        self.content_area.setLayout(layout)
+        self.init_size_hint = self.sizeHint().height()
+        self.init_max_area = self.content_area.maximumHeight()
+        self._refresh_animation_bounds()

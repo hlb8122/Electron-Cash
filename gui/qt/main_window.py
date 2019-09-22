@@ -2625,11 +2625,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
             new_index = self.u_ks_forms.count() - 1
             self.u_ks_forms.setCurrentIndex(new_index)
-
+            upload_groupbox.resize()
             on_text_changed()
 
         def remove_forms():
             self.u_ks_forms.clear()
+            upload_groupbox.resize()
         
         add_new_entry.clicked.connect(add_form)
         clear_button = QPushButton(_("&Clear Entries"))
@@ -2671,6 +2672,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     forms = construct_download_forms(self, extracted)
                     for form in forms:
                         self.d_ks_forms.addTab(form, form.name)
+                    download_groupbox.resize()
 
         msg = _('Address to downloaded from.  Use the tool button on the right to pick a wallet address.')
         description_label = HelpLabel(_('&Address'), msg)
@@ -2687,10 +2689,37 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         download_groupbox.setContentLayout(download_grid)
 
+        # Tools
+        tools_groupbox = CollapsibleBox("Tools")
+
+        tool_grid = QGridLayout()
+        tool_grid.setSpacing(8)
+        tool_grid.setColumnStretch(3, 1)
+
+        msg = _('W2W Message to be decoded.')
+        description_label = HelpLabel(_('&W2W Message'), msg)
+        tool_grid.addWidget(description_label, 0, 0)
+        self.w2w_cipher_text_e = QTextEdit()
+        description_label.setBuddy(self.w2w_cipher_text_e)
+        tool_grid.addWidget(self.w2w_cipher_text_e, 0, 1, 1, -1)
+
+        def decrypt_w2w_msg():
+            import base64
+            from electroncash.keyserver.messaging_pb2 import Message
+            message = Message.FromString(base64.b64decode(self.w2w_cipher_text_e.toPlainText()))
+            print(message)
+
+        decrypt = QPushButton(_("&Decrypt"))
+        decrypt.clicked.connect(decrypt_w2w_msg)
+        tool_grid.addLayout(Buttons(decrypt), 1, 1, 1, -1)
+
+        tools_groupbox.setContentLayout(tool_grid)
+
         # Compose
         vbox0 = QVBoxLayout()
         vbox0.addWidget(upload_groupbox)
         vbox0.addWidget(download_groupbox)
+        vbox0.addWidget(tools_groupbox)
         hbox = QHBoxLayout()
         hbox.addLayout(vbox0)
 
