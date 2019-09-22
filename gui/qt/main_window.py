@@ -2545,9 +2545,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return regenerate_key(pk).privkey
 
         timestamp, entries = decrypt_entries(raw_msg, fetch_priv_from_pub)
-        messages = "Timestamp: " + datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S') + "\n"
-        messages += "Messages:\n" + "\n".join([entry.entry_data.decode() for entry in entries if entry.kind == "text_utf8"])
-        self.msg_box(QMessageBox.Information, None, "Message" , messages)
+        messages = "Timestamp: " + datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S') + "\n\n"
+        messages += "\n".join([entry.entry_data.decode() for entry in entries if entry.kind == "text_utf8"])
+        self.show_message(messages)
         
 
     def create_keyserver_tab(self):
@@ -2718,8 +2718,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tool_grid.setSpacing(8)
         tool_grid.setColumnStretch(3, 1)
 
-        msg = _('W2W Message to be decoded.')
-        description_label = HelpLabel(_('&W2W Message'), msg)
+        msg = _('W2W message to be decoded.')
+        description_label = HelpLabel(_('&W2W Message (Base64)'), msg)
         tool_grid.addWidget(description_label, 0, 0)
         self.w2w_cipher_text_e = QTextEdit()
         description_label.setBuddy(self.w2w_cipher_text_e)

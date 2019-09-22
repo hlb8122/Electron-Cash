@@ -55,8 +55,7 @@ def pubkey_encrypt(parent, dest_pubkey: bytes):
         entries = Entries(entries=[w2w_plain_text_entry(plain_text)])
         encrypted_message = encrypt_entries(entries, src_pubkey, dest_pubkey)
         encoded = base64.b64encode(encrypted_message).decode()
-        parent.msg_box(QMessageBox.Information, None,
-                       "Cipher Text (Base 64)", encoded)
+        parent.show_message(encoded, title="Encoded Message (Base64)")
 
 
 class OverviewForm(QWidget):
@@ -119,7 +118,7 @@ class OverviewForm(QWidget):
         description_label.setBuddy(public_key_text_e)
         overview_grid.addWidget(public_key_text_e, 4, 1, 1, -1)
 
-        encrypt = QPushButton(_("&W2W Encryption"))
+        encrypt = QPushButton(_("Create &W2W Message"))
         encrypt.clicked.connect(lambda: pubkey_encrypt(
             parent, extracted.metadata.pub_key))
         overview_grid.addLayout(Buttons(encrypt), 5, 1, 1, -1)
@@ -255,7 +254,7 @@ class DPubKeyForm(QWidget):
         description_label.setBuddy(upload_pubkey_e)
         pubkey_grid.addWidget(upload_pubkey_e, 0, 1, 1, -1)
 
-        encrypt_button = QPushButton(_("&W2W Encryption"))
+        encrypt_button = QPushButton(_("Create &W2W Message"))
         pubkey_grid.addLayout(Buttons(encrypt_button), 1, 1, 1, -1)
         encrypt_button.clicked.connect(lambda: pubkey_encrypt(parent, pubkey))
 
