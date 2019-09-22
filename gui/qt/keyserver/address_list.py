@@ -358,7 +358,8 @@ def pick_ks_address(parent, external=False) -> str:
                 nonlocal addr
                 if text != "":
                     if Address.is_valid(text):
-                        addr = text
+                        # TODO: Fix clunky way to add prefix
+                        addr = Address.from_string(text).to_full_ui_string()
                         ok.setEnabled(True)
                     else:
                         ok.setEnabled(False)

@@ -2535,7 +2535,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         from electroncash.keyserver.w2w_messages import decrypt_entries
         from electroncash.bitcoin import regenerate_key
         from datetime import datetime
-        raw_msg = base64.b64decode(self.w2w_cipher_text_e.toPlainText())
+        try:
+            raw_msg = base64.b64decode(self.w2w_cipher_text_e.toPlainText())
+        except Exception as err:
+            self.show_error("Failed to decode base64", detail_text=str(err))
+            return
 
         def fetch_priv_from_pub(pubkey):
             # TODO: Refactor crypto library to make this easier?
@@ -2544,18 +2548,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             pk, _ = self.wallet.keystore.get_private_key(index, password)
             return regenerate_key(pk).privkey
 
-        timestamp, entries = decrypt_entries(raw_msg, fetch_priv_from_pub)
-        messages = "Timestamp: " + datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S') + "\n\n"
-        messages += "\n".join([entry.entry_data.decode() for entry in entries if entry.kind == "text_utf8"])
+        try:
+            timestamp, entries = decrypt_entries(raw_msg, fetch_priv_from_pub)
+        except Exception as err:
+            self.show_error("Failed to decrypt entries", detail_text=str(err))
+            return
+
+        messages = "Timestamp: " + datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S') + "\n"
+        messages += "Messages:\n" + "\n".join([entry.entry_data.decode() for entry in entries if entry.kind == "text_utf8"])
         self.show_message(messages)
         
 
     def create_keyserver_tab(self):
+        from PyQt5.QtCore import QDateTime
         from .keyserver.upload_forms import UPlainTextForm, UTelegramForm, UKeyserverURLForm, UVCardForm, UPubkeyForm
         from .keyserver.tab_bar import TabWidget
         from .keyserver.address_list import pick_ks_address
         from electroncash.keyserver.handler import KSHandler
         from .keyserver.collapsible_box import CollapsibleBox
+        from datetime import datetime
 
         # Init handler
         self.ks_handler = KSHandler()
@@ -2582,13 +2593,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         description_label.setBuddy(self.ks_addr_upload_e)
         upload_grid.addWidget(self.ks_addr_upload_e, 1, 1, 1, -1)
 
-        msg = _('Time-to-Live of the metadata.')
-        description_label = HelpLabel(_('&TTL'), msg)
+        msg = _('Expiry of the metadata.')
+        description_label = HelpLabel(_('&Expiry'), msg)
         upload_grid.addWidget(description_label, 2, 0)
-        self.ks_ttl_upload_e = QLineEdit()
-        self.ks_ttl_upload_e.setPlaceholderText(_("Enter Time-to-Live"))
-        description_label.setBuddy(self.ks_ttl_upload_e)
-        upload_grid.addWidget(self.ks_ttl_upload_e, 2, 1, 1, -1)
+        self.ks_expiry_upload_e = QDateTimeEdit()
+        self.ks_expiry_upload_e.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        now = QDateTime.currentDateTime()
+        self.ks_expiry_upload_e.setDateTime(now)
+        tomorrow = now.addDays(1)
+        self.ks_expiry_upload_e.setMinimumDateTime(tomorrow)
+        description_label.setBuddy(self.ks_expiry_upload_e)
+        upload_grid.addWidget(self.ks_expiry_upload_e, 2, 1, 1, -1)
 
         msg = _('Add new entry to payload.')
         description_label = HelpLabel(_('&New Entry'), msg)
@@ -2609,9 +2624,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def on_text_changed():
             addr_is_some = bool(self.ks_addr_upload_e.text())
-            ttl_is_some = bool(self.ks_ttl_upload_e.text())
 
-            if not (addr_is_some and ttl_is_some):
+            if not addr_is_some:
                 upload_button.setEnabled(False)
                 return
             
@@ -2652,6 +2666,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def remove_forms():
             self.u_ks_forms.clear()
+            on_text_changed()
             upload_groupbox.resize()
         
         add_new_entry.clicked.connect(add_form)
@@ -2667,7 +2682,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.stacked_forms.widget(index).clear()
 
         self.ks_addr_upload_e.textChanged.connect(on_text_changed)
-        self.ks_ttl_upload_e.textChanged.connect(on_text_changed)
+        self.ks_expiry_upload_e.dateChanged.connect(on_text_changed)
         on_text_changed()  # start button off disabled
 
         upload_groupbox.setContentLayout(upload_grid)
@@ -2695,6 +2710,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     for form in forms:
                         self.d_ks_forms.addTab(form, form.name)
                     download_groupbox.resize()
+                else:
+                    str_error = ""
+                    for url, err in errors:
+                        str_error += url + ": " + str(err) + "\n"
+                    self.show_error("Failed to retrieve metadata", detail_text=str_error)
 
         msg = _('Address to downloaded from.  Use the tool button on the right to pick a wallet address.')
         description_label = HelpLabel(_('&Address'), msg)
@@ -2820,7 +2840,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         from electroncash.keyserver.metadata_builder import MetadataBuilder
 
         addr = str(self.ks_addr_upload_e.text())
-        ttl = int(self.ks_ttl_upload_e.text())
+        now = QDateTime.currentDateTime()
+        expiry = self.ks_expiry_upload_e.dateTime()
+        ttl = int(now.secsTo(expiry))
         ks_url = self.ks_handler.uniform_sample()
         url = "%s/keys/%s" % (ks_url, addr)
 

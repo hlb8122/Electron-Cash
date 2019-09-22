@@ -99,7 +99,7 @@ class OverviewForm(QWidget):
         overview_grid.addWidget(expiry_text_e, 2, 1, 1, -1)
 
         msg = _('Percentage of sampled nodes which have accepted the metadata.')
-        description_label = HelpLabel(_('&Confidence'), msg)
+        description_label = HelpLabel(_('&Diffusion'), msg)
         overview_grid.addWidget(description_label, 3, 0)
         confidence_text_e = QLineEdit()
         confidence_text_e.setReadOnly(True)
