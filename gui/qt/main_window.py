@@ -2533,12 +2533,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         from .keyserver.tab_bar import TabWidget
         from .keyserver.address_list import pick_ks_address
         from electroncash.keyserver.handler import KSHandler
+        from .keyserver.collapsible_box import CollapsibleBox
 
         # Init handler
         self.ks_handler = KSHandler()
 
         # Upload
-        upload_groupbox = QGroupBox("Upload")
+        upload_groupbox = CollapsibleBox("Upload")
         
         upload_grid = QGridLayout()
         upload_grid.setSpacing(8)
@@ -2642,10 +2643,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.ks_ttl_upload_e.textChanged.connect(on_text_changed)
         on_text_changed()  # start button off disabled
 
-        upload_groupbox.setLayout(upload_grid)
+        upload_groupbox.setContentLayout(upload_grid)
 
         # Download
-        download_groupbox = QGroupBox("Download")
+        download_groupbox = CollapsibleBox("Download")
 
         download_grid = QGridLayout()
         download_grid.setSpacing(8)
@@ -2680,7 +2681,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.d_ks_forms = TabWidget(self)
         download_grid.addWidget(self.d_ks_forms, 2, 0, 1, -1)
 
-        download_groupbox.setLayout(download_grid)
+        download_groupbox.setContentLayout(download_grid)
 
         # Compose
         vbox0 = QVBoxLayout()
