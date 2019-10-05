@@ -2619,7 +2619,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         add_new_entry = QPushButton(_("&Add"))
         upload_grid.addWidget(add_new_entry, 3, 2, 1, 1)
         
-        self.u_ks_forms = TabWidget(self)
+        self.u_ks_forms = QTabWidget(self)
         upload_grid.addWidget(self.u_ks_forms, 4, 0, 1, -1)
 
         def on_text_changed():
@@ -2726,7 +2726,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         description_label.setBuddy(self.ks_addr_download_e)
         download_grid.addWidget(self.ks_addr_download_e, 1, 1, 1, -1)
 
-        self.d_ks_forms = TabWidget(self)
+        self.d_ks_forms = QTabWidget(self)
         download_grid.addWidget(self.d_ks_forms, 2, 0, 1, -1)
 
         download_groupbox.setContentLayout(download_grid)
