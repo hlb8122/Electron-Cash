@@ -373,7 +373,7 @@ class KSPaymentRequest(PaymentRequest):
         except requests.exceptions.RequestException as e:
             return False, str(e)
         
-        if r.status_code != 302:
+        if r.status_code != 202:
             # Propagate 'Bad request' (HTTP 400) messages to the user since they
             # contain valuable information.
             if r.status_code == 400:
