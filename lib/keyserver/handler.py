@@ -17,7 +17,7 @@ class KSHandler:
     '''
     # Hardcoded trusted nodes
     # TODO: Mainnet vs Testnet
-    trusted_ks_urls = ["http://35.232.229.28", "http://34.67.137.105"]
+    trusted_ks_urls = ["http://34.67.137.105"]
 
     # Address holding peer list
     trusted_keyservers_addr = ""
