@@ -34,7 +34,7 @@ class MetadataBuilder:
     def build(self):
         if self._is_incomplete():
             raise Exception("metadata incomplete")
-        
+
         # Construct Payload
         timestamp = int(time())
         payload = Payload(timestamp=timestamp, ttl=self.ttl,
@@ -47,8 +47,6 @@ class MetadataBuilder:
 
         # Address metadata
         addr_metadata = AddressMetadata(
-            pub_key=public_key, payload=payload, scheme=1, signature=signature)
+            pub_key=public_key, serialized_payload=raw_payload, scheme=1, signature=signature)
         raw_addr_meta = addr_metadata.SerializeToString()
-
         return raw_addr_meta
-

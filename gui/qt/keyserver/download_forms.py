@@ -9,9 +9,13 @@ from electroncash.keyserver.handler import Extracted
 def construct_download_forms(parent, extracted):
     import vobject
     from electroncash.keyserver.keyservers_pb2 import Keyservers
+    from electroncash.keyserver.addressmetadata_pb2 import Payload
 
     forms = [OverviewForm(parent, extracted)]
-    for entry in extracted.metadata.payload.entries:
+    payload = Payload()
+    payload.ParseFromString(extracted.metadata.serialized_payload)
+
+    for entry in payload.entries:
         try:
             if entry.kind == "text_utf8":
                 text = entry.entry_data.decode('utf8')
@@ -63,8 +67,12 @@ class OverviewForm(QWidget):
 
     def __init__(self, parent, extracted: Extracted, *args, **kwargs):
         from datetime import datetime
+        from electroncash.keyserver.addressmetadata_pb2 import Payload
+
         super(OverviewForm, self).__init__(*args, **kwargs)
         overview_grid = QGridLayout()
+        payload = Payload()
+        payload.ParseFromString(extracted.metadata.serialized_payload)
 
         msg = _('URL the metadata was sourced from.')
         description_label = HelpLabel(_('&Source URL'), msg)
@@ -81,7 +89,7 @@ class OverviewForm(QWidget):
         dt_text_e = QLineEdit()
         dt_text_e.setReadOnly(True)
         dt = datetime.utcfromtimestamp(
-            extracted.metadata.payload.timestamp).strftime('%Y-%m-%d %H:%M:%S')
+            payload.timestamp).strftime('%Y-%m-%d %H:%M:%S')
         dt_text_e.setText(dt)
         description_label.setBuddy(dt_text_e)
         overview_grid.addWidget(dt_text_e, 1, 1, 1, -1)
@@ -91,7 +99,7 @@ class OverviewForm(QWidget):
         overview_grid.addWidget(description_label, 2, 0)
         expiry_text_e = QLineEdit()
         expiry_text_e.setReadOnly(True)
-        expiry_time = extracted.metadata.payload.timestamp + extracted.metadata.payload.ttl
+        expiry_time = payload.timestamp + payload.ttl
         dt = datetime.utcfromtimestamp(
             expiry_time).strftime('%Y-%m-%d %H:%M:%S')
         expiry_text_e.setText(dt)

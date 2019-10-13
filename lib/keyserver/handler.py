@@ -6,6 +6,7 @@ from .addressmetadata_pb2 import Entry, Payload, AddressMetadata, Header
 class Extracted:
     url = None
     metadata = None
+    payload = None
     confidence = 0
 
 
@@ -58,7 +59,8 @@ class KSHandler:
         for url in sample_set:
             try:
                 new_metadata = KSHandler.construct_metadata(url, addr)
-                new_timestamp = new_metadata.payload.timestamp
+                new_payload = Payload()
+                new_payload.ParseFromString(new_metadata.serialized_payload)
 
                 if KSHandler._validate_sig(addr, new_metadata):
                     if best is None:
@@ -66,19 +68,23 @@ class KSHandler:
                         best.confidence = 1
                         best.url = url
                         best.metadata = new_metadata
+                        best.payload = new_payload
                     else:
-                        if new_timestamp < best.metadata.payload.timestamp:
+                        new_timestamp = new_payload.timestamp
+                        if new_timestamp < best.payload.timestamp:
                             raise Exception("older timestamp")
 
+                        # Check for lexicographical ordering
                         if new_metadata == best.metadata:
-                            if new_timestamp > best.metadata.payload.timestamp:
-                                best.confidence = 1
+                            if new_timestamp > best.payload.timestamp:
+                                best.confidence = 0
                                 best.url = url
                             else:
                                 best.confidence += 1
                         else:
                             best.metadata = new_metadata
-                            best.confidence = 1
+                            best.payload = new_payload
+                            best.confidence = 0
                             best.url = url
 
             except Exception as e:
