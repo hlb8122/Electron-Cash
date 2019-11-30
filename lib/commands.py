@@ -563,6 +563,15 @@ class Commands:
         # This function generates a receiving address based on CKD.
         
         new_pubkey = bitcoin.CKD_pub(parent_pubkey,secret,0)[0]
+        
+        use_uncompressed = True
+        if use_uncompressed:
+            pubkey_point = bitcoin.ser_to_point(new_pubkey)
+            point_x=pubkey_point.x()
+            point_y=pubkey_point.y()
+            uncompressed="04"+hex(pubkey_point.x())[2:]+hex(pubkey_point.y())[2:] 
+            new_pubkey = bytes.fromhex(uncompressed)
+                       
         addr = Address.from_pubkey(new_pubkey)
         
         return addr
@@ -743,7 +752,7 @@ class Commands:
         """Create a multi-output transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
-        tx = self.s_mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, password, locktime)
+        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, password, locktime)
         return tx.as_dict()
 
     @command('w')
