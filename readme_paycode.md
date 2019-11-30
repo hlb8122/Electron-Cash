@@ -16,6 +16,10 @@ pay_to_paycode(0.1,0,"1NJxyu.......","0e38.....38882fb:21","paycode")
 
 3. receive_paycode_transaction()
 
-This takes a transaction and unpacks it using the paycode to generate the address.  The output is the private key.  It does not validate to see if the paycode matches.
+This takes a raw transaction and unpacks it using the paycode to generate the address.  The output is the private key.  It does not validate to see if the paycode matches.
+
+Usage:  
+
+receive_paycode_transaction("010000.....523300000")
 
 This does not implement libsec256k1 as it was faster and clearer to use pure python.
