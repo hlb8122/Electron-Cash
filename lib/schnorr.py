@@ -118,7 +118,7 @@ def nonce_function_rfc6979(order, privkeybytes, msg32, algo16=b'', ndata=b''):
     return k
 
 
-def sign(privkey, message_hash):
+def sign(privkey, message_hash,ndata = b''):
     '''Create a Schnorr signature.
 
     Returns a 64-long bytes object (the signature), or raise ValueError
@@ -135,8 +135,10 @@ def sign(privkey, message_hash):
         raise ValueError('privkey must be a bytes object of length 32')
     if not isinstance(message_hash, bytes) or len(message_hash) != 32:
         raise ValueError('message_hash must be a bytes object of length 32')
-
-    if _secp256k1_schnorr_sign:
+ 
+    
+    # Use pure python for paycodePoC if ndata is present.
+    if _secp256k1_schnorr_sign and len(ndata) == 0:
         sig = create_string_buffer(64)
         res = _secp256k1_schnorr_sign(
             secp256k1.secp256k1.ctx, sig, message_hash, privkey, None, None
@@ -161,7 +163,7 @@ def sign(privkey, message_hash):
         pubbytes = point_to_ser(pubpoint, comp=True)
 
         k = nonce_function_rfc6979(order, privkey, message_hash,
-                                   algo16=b'Schnorr+SHA256\x20\x20')
+                                   algo16=b'Schnorr+SHA256\x20\x20',ndata=ndata)
         R = k * G
         if jacobi(R.y(), fieldsize) == -1:
             k = order - k

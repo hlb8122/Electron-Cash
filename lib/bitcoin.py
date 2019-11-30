@@ -816,8 +816,8 @@ def _CKD_pub(cK, c, s):
 
 def xprv_header(xtype, *, net=None):
     if net is None: net = networks.net
-    return bfh("%08x" % net.XPRV_HEADERS[xtype])
-
+    retval= bfh("%08x" % net.XPRV_HEADERS[xtype])
+    return retval
 
 def xpub_header(xtype, *, net=None):
     if net is None: net = networks.net
@@ -827,8 +827,17 @@ def xpub_header(xtype, *, net=None):
 def serialize_xprv(xtype, c, k, depth=0, fingerprint=b'\x00'*4, child_number=b'\x00'*4, *, net=None):
     if net is None: net = networks.net
     xprv = xprv_header(xtype, net=net) + bytes([depth]) + fingerprint + child_number + c + bytes([0]) + k
-    return EncodeBase58Check(xprv)
-
+    #print ("before encoding it, xprv is ",xprv)
+    #print ("bytes depth is ",bytes([depth]))
+    ##print ("fingerprint is ",fingerprint)
+    #print ("child_number is ",child_number)
+    #print ("c is ",c, "type is ",type(c))
+    #print ("k is ",k, "type is", type(k))
+    #print ("len of c ",len(c))    
+    #print ("len of k ",len(k))
+    retval= EncodeBase58Check(xprv)
+    #print ("bitcoin.py serialize xprv is ",retval)
+    return retval
 
 def serialize_xpub(xtype, c, cK, depth=0, fingerprint=b'\x00'*4, child_number=b'\x00'*4, *, net=None):
     if net is None: net = networks.net

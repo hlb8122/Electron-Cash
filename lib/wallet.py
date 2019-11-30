@@ -883,14 +883,16 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             self._addr_bal_cache[address] = result
         return result
 
-    def get_spendable_coins(self, domain, config, isInvoice = False):
+    def get_spendable_coins(self, domain, config, isInvoice = False,paycodePoC_outpoint = None):
+        
         confirmed_only = config.get('confirmed_only', DEFAULT_CONFIRMED_ONLY)
         if (isInvoice):
             confirmed_only = True
-        return self.get_utxos(domain, exclude_frozen=True, mature=True, confirmed_only=confirmed_only, exclude_slp=True)
+        return self.get_utxos(domain, exclude_frozen=True, mature=True, confirmed_only=confirmed_only, exclude_slp=True,paycodePoC_outpoint= paycodePoC_outpoint)
 
     def get_utxos(self, domain = None, exclude_frozen = False, mature = False, confirmed_only = False,
-                  *, addr_set_out = None, exclude_slp = True):
+                  *, addr_set_out = None, exclude_slp = True,paycodePoC_outpoint = None):
+                   
         '''Note that exclude_frozen = True checks for BOTH address-level and
         coin-level frozen status.
 
@@ -923,7 +925,14 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                     # and also txmempool.cpp  CTxMemPool::removeForReorg.
                     if mature and x['coinbase'] and mempoolHeight - x['height'] < COINBASE_MATURITY:
                         continue
-                    coins.append(x)
+                    if paycodePoC_outpoint:
+                        paycodePoC_outpoint_pieces = paycodePoC_outpoint.split(':')
+                        paycodePoC_outpoint_prevout_hash = paycodePoC_outpoint_pieces[0]
+                        paycodePoC_outpoint_prevout_n = paycodePoC_outpoint_pieces[1]
+                        if x.get('prevout_hash') == paycodePoC_outpoint_prevout_hash and str(x.get('prevout_n')) == paycodePoC_outpoint_prevout_n:
+                            coins.append(x)
+                    else:
+                        coins.append(x) 
                 if addr_set_out is not None and len(coins) > len_before:
                     # add this address to the address set if it has results
                     addr_set_out.add(addr)
@@ -1970,7 +1979,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 info[addr] = index, sorted_xpubs, self.m if isinstance(self, Multisig_Wallet) else None, self.txin_type
         tx.output_info = info
 
-    def sign_transaction(self, tx, password):
+    def sign_transaction(self, tx, password, ndata=b''):
         if self.is_watching_only():
             return
         # add input values for signing
@@ -1982,7 +1991,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         for k in self.get_keystores():
             try:
                 if k.can_sign(tx):
-                    k.sign_transaction(tx, password)
+                    k.sign_transaction(tx, password,ndata)
             except UserCancelled:
                 continue
 

@@ -37,12 +37,13 @@ from functools import wraps
 
 from . import bitcoin
 from . import util
-from .address import Address, AddressError
-from .bitcoin import hash_160, COIN, TYPE_ADDRESS
+from .address import Address, AddressError, Base58
+from .bitcoin import hash_160, COIN, TYPE_ADDRESS,sha256
 from .i18n import _
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .plugins import run_hook
 from .transaction import Transaction, multisig_script, OPReturn
+from .transaction import parse_scriptSig as parse_scriptSig
 from .util import bfh, bh2u, format_satoshis, json_decode, print_error, to_bytes
 
 known_commands = {}
@@ -475,7 +476,8 @@ class Commands:
         return bitcoin.verify_message(address, sig, message)
 
     def _mktx(self, outputs, fee=None, change_addr=None, domain=None, nocheck=False,
-              unsigned=False, password=None, locktime=None, op_return=None, op_return_raw=None):
+              unsigned=False, password=None, locktime=None, op_return=None, op_return_raw=None,paycodePoC_outpoint=None, ndata=b''):
+              
         if op_return and op_return_raw:
             raise ValueError('Both op_return and op_return_raw cannot be specified together!')
         self.nocheck = nocheck
@@ -497,14 +499,14 @@ class Commands:
             address = self._resolver(address)
             amount = satoshis(amount)
             final_outputs.append((TYPE_ADDRESS, address, amount))
-
-        coins = self.wallet.get_spendable_coins(domain, self.config)
+ 
+        coins = self.wallet.get_spendable_coins(domain, self.config, False, paycodePoC_outpoint) 
         tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
         if locktime != None:
             tx.locktime = locktime
         if not unsigned:
             run_hook('sign_tx', self.wallet, tx)
-            self.wallet.sign_transaction(tx, password)
+            self.wallet.sign_transaction(tx, password,ndata)
         return tx
 
     @command('wp')
@@ -516,12 +518,232 @@ class Commands:
         tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, password, locktime, op_return, op_return_raw)
         return tx.as_dict()
 
+
+    @command('')
+    def calculate_paycode_shared_secret(self,private_key,public_key,outpoint):
+    
+        # private key is expected to be an integer.
+        # public_key is expected to be bytes.
+        # outpoint is expected to be a string.
+        # returns the paycode shared secret as bytes
+        
+        from fastecdsa import keys, curve
+        from fastecdsa.point import Point 
+        
+        # Public key is expected to be compressed.  Change into a point object.   
+        pubkey_point = bitcoin.ser_to_point(public_key)
+        fastecdsa_point = Point(pubkey_point.x(),pubkey_point.y(),curve.secp256k1) 
+        
+        # Multiply the public and private points together
+        ecdh_product = fastecdsa_point * private_key
+        ecdh_x = ecdh_product.x
+        ecdh_x_bytes = ecdh_x.to_bytes(33,byteorder="big")
+        
+        # Get the hash of the product
+        sha_ecdh_x_bytes = sha256(ecdh_x_bytes)
+        sha_ecdh_x_as_int = int.from_bytes(sha_ecdh_x_bytes,byteorder="big")
+  
+        # Hash the outpoint string
+        hash_of_outpoint = sha256(outpoint)
+        hash_of_outpoint_as_int = int.from_bytes(hash_of_outpoint,byteorder="big")
+        
+        # Sum the ECDH hash and the outpoint Hash 
+        grand_sum = sha_ecdh_x_as_int + hash_of_outpoint_as_int
+
+        # Hash the final result
+        grand_sum_hex = hex(grand_sum)
+        shared_secret = sha256(grand_sum_hex) 
+        
+        return shared_secret
+
+    @command('')
+    def generate_address_from_pubkey_and_secret(self,parent_pubkey,secret):
+  
+        # parent_pubkey and secret are expected to be bytes
+        # This function generates a receiving address based on CKD.
+        
+        new_pubkey = bitcoin.CKD_pub(parent_pubkey,secret,0)[0]
+        addr = Address.from_pubkey(new_pubkey)
+        
+        return addr
+        
+    @command('')
+    def generate_privkey_from_secret(self,parent_privkey,secret):
+  
+        # parent_privkey and secret are expected to be bytes
+        # This function generates a receiving address based on CKD.
+        
+        new_privkey = bitcoin.CKD_priv(parent_privkey,secret,0)[0].hex()
+        
+        
+        return new_privkey   
+    
+  
+    @command('')
+    def generate_paycode(self):
+    
+    
+        print("Generating a paycode.  Your Scanpubkey is Receiving address 0.  Your spendpubkey is Receiving address 1.")
+        print(" ")
+        
+        version = "01"
+        prefix_size = "04"
+        scanpubkey = self.wallet.derive_pubkeys(0,0)
+        spendpubkey = self.wallet.derive_pubkeys(0,1)
+        expiry = "00000000"
+        checksum = "0000000000"
+        retval = version + prefix_size  + scanpubkey + spendpubkey + expiry + checksum
+        
+        print ("Your prefix starts with ",scanpubkey[0:4])
+        
+        print ("HERE IS YOUR PAYCODE:")
+        return retval
+    
+    @command('wp')
+    def pay_to_paycode(self, amount, fee=None, from_addr=None, paycodePoC_outpoint=None, paycode=None, change_addr=None, nocheck=False, unsigned=False, password=None, locktime=None,
+              op_return=None, op_return_raw=None):
+              
+        
+        #from fastecdsa import keys, curve
+        #from fastecdsa.point import Point 
+        
+        # Initialize variable for the final return value.
+        final_raw_tx = 0
+        
+        # Parse paycode
+        paycode_field_version = paycode[0:2]
+        paycode_field_prefix_size = paycode [2:4]
+        paycode_field_scan_pubkey = paycode [4:70]
+        paycode_field_spend_pubkey = paycode [70:136]
+        paycode_field_expiry = paycode [136:144]
+        paycode_field_checksum = paycode [ 144: 154]
+       
+        # Fetch our own private key out of the wallet for the coin we want to send.
+        bitcoin_addr = Address.from_string(from_addr)
+        private_key_wif_format = self.wallet.export_private_key(bitcoin_addr,password)
+        private_key_int_format = int.from_bytes(Base58.decode_check(private_key_wif_format)[1:33],byteorder="big")
+        
+        # Format the pubkey and outpoint in preparation to get the shared secret
+        scanpubkey_bytes =  bytes.fromhex(paycode_field_scan_pubkey)    
+        outpoint_string = paycodePoC_outpoint.split(':')[0]+paycodePoC_outpoint.split(':')[1]
+       
+        # Calculate shared secret   
+        shared_secret = self.calculate_paycode_shared_secret(private_key_int_format,scanpubkey_bytes,outpoint_string)    
+      
+        # Get the destination address for the transaction
+        destination=str(self.generate_address_from_pubkey_and_secret(bytes.fromhex(paycode_field_spend_pubkey),shared_secret))
+        
+        print ("SENDING TO ...",destination)
+        
+        # Initialize a few variables for the transaction
+        tx_fee = satoshis(fee)
+        domain = from_addr.split(',') if from_addr else None 
+        
+        # Initiliaze a few variables for grinding
+        tx_matches_paycode_prefix = False
+        grind_nonce = 0
+        grinding_version = "1"     
+        
+        if paycode_field_prefix_size == "04":
+            prefix_chars=1
+        elif paycode_field_prefix_size == "08":
+            prefix_chars=2
+        elif paycode_field_prefix_size == "0C":
+            prefix_chars=3
+        elif paycode_field_prefix_size == "10":
+            prefix_chars=4
+        else:
+            raise BaseException("Invalid prefix size. Must be 4,8,12, or 16 bits.")
+             
+        print ("Attempting to grind a matching prefix.  Please wait a moment...")
+        if paycode_field_prefix_size == "0C" or paycode_field_prefix_size == "10":
+            print ("Libsecp256k1 not used in this implementation, so you may have to wait some minutes if you chose 12 or 16 bit prefix.  Please be patient...")
+        
+        # While loop for grinding.  Keep grinding until txid prefix matches paycode scanpubkey prefix.
+        while not tx_matches_paycode_prefix:
+            
+            # Calculate ndata for grinding.  Ndata is passed through the stack as an input into RFC 6979
+            grind_nonce_string = str(grind_nonce)
+            grinding_message = paycode + grind_nonce_string + grinding_version
+            ndata = sha256(grinding_message) 
+      
+            # Construct the transaction
+            tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, password, locktime, op_return, op_return_raw,paycodePoC_outpoint,ndata)
+            
+            # Get the TxId for this raw Tx.
+            raw_tx_string = tx.as_dict()["hex"]
+            double_hash_tx = bytearray(sha256(sha256(bytes.fromhex(raw_tx_string))))
+            double_hash_tx.reverse()
+            txid=double_hash_tx.hex()
+            
+            # Check if we got a successful match.  If so, exit.
+            if txid[0:prefix_chars].upper() == paycode_field_scan_pubkey[0:prefix_chars].upper():
+                print ("Grinding successful after ",grind_nonce," iterations.")
+                print ("Transaction Id: ",txid)
+                final_raw_tx = raw_tx_string
+                tx_matches_paycode_prefix = True  # <<-- exit 
+            
+            # Increment the nonce
+            grind_nonce+=1
+            
+        return final_raw_tx
+        
+        
+    @command('wp')
+    def receive_paycode_transaction(self,raw_tx, password=None):
+    
+        # Deserialize the raw transaction
+        unpacked_tx = Transaction.deserialize(Transaction(raw_tx))
+         
+        # Grab the outpoint
+        first_input = unpacked_tx["inputs"][0]
+        prevout_hash = first_input["prevout_hash"]
+        prevout_n = str(first_input["prevout_n"])   # n is int. convert to str.
+        outpoint_string = prevout_hash + prevout_n 
+        
+        # Get the pubkey of the sender from the scriptSig. 
+        scriptSig = bytes.fromhex(first_input["scriptSig"])
+        d={} 
+        parsed_scriptSig = parse_scriptSig(d,scriptSig)
+        sender_pubkey = bytes.fromhex(d["pubkeys"][0]) 
+        
+        # We need the private key that corresponds to the scanpubkey.
+        # In this implementation, this is the one that goes with receiving address 0
+        scanpubkey = self.wallet.derive_pubkeys(0,0) 
+        
+        # Fetch our own private (scan) key out of the wallet.
+        scan_bitcoin_addr = Address.from_pubkey(scanpubkey)
+        scan_private_key_wif_format = self.wallet.export_private_key(scan_bitcoin_addr,password)
+        scan_private_key_int_format = int.from_bytes(Base58.decode_check(scan_private_key_wif_format)[1:33],byteorder="big")
+        
+        # Calculate shared secret   
+        shared_secret = self.calculate_paycode_shared_secret(scan_private_key_int_format,sender_pubkey,outpoint_string)    
+  
+        # Get the spendpubkey for our paycode.  
+        # In this implementation, simply: receiving address 1.
+        spendpubkey = self.wallet.derive_pubkeys(0,1)
+        
+        # Get the destination address for the transaction
+        destination=str(self.generate_address_from_pubkey_and_secret(bytes.fromhex(spendpubkey),shared_secret))
+        print ("RECEIVING AT ",destination," GENERATING PRIVATE KEY...")
+        
+        # Fetch our own private (spend) key out of the wallet.
+        spendpubkey = self.wallet.derive_pubkeys(0,1)
+        spend_bitcoin_addr = Address.from_pubkey(spendpubkey)
+        spend_private_key_wif_format = self.wallet.export_private_key(spend_bitcoin_addr,password)
+        spend_private_key_int_format = int.from_bytes(Base58.decode_check(spend_private_key_wif_format)[1:33],byteorder="big")
+        
+        # Generate the private key for the money being received via paycode
+        privkey = self.generate_privkey_from_secret(bytes.fromhex(hex(spend_private_key_int_format)[2:]),shared_secret)
+     
+        return privkey
+        
     @command('wp')
     def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, password=None, locktime=None):
         """Create a multi-output transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
-        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, password, locktime)
+        tx = self.s_mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, password, locktime)
         return tx.as_dict()
 
     @command('w')
@@ -833,6 +1055,8 @@ command_options = {
     'op_return_raw': (None, 'Specify raw hex data to add to the transaction as an OP_RETURN output (0x6a aka the OP_RETURN byte will be auto-prepended for you so do not include it)'),
     'paid':        (None, "Show only paid requests."),
     'password':    ("-W", "Password"),
+    'paycode':     (None, "Paycode"),
+    'paycodePoC_outpoint': (None,'Transaction Outpoint string'),
     'payment_url': (None, 'Optional URL where you would like users to POST the BIP70 Payment message'),
     'pending':     (None, "Show only pending requests."),
     'privkey':     (None, "Private key. Set to '?' to get a prompt."),
