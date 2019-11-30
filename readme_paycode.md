@@ -1,3 +1,5 @@
+PLEASE ONLY TEST WITH SMALL AMOUNTS!
+
 Proof of concept of "reusable addresses proposal. https://github.com/imaginaryusername/Reusable_specs/blob/master/reusable_addresses.md
 
 This is a CLI implementation in Electron Cash that has 3 functions:
