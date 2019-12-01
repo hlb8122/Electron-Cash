@@ -175,6 +175,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.console_tab = self.create_console_tab()
         self.contacts_tab = self.create_contacts_tab()
         self.converter_tab = self.create_converter_tab()
+        self.reusable_tab = self.create_reusable_tab()
         tabs.addTab(self.create_history_tab(), QIcon(":icons/tab_history.png"), _('History'))
         tabs.addTab(self.send_tab, QIcon(":icons/tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, QIcon(":icons/tab_receive.png"), _('Receive'))
@@ -194,6 +195,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         add_optional_tab(tabs, self.contacts_tab, QIcon(":icons/tab_contacts.png"), _("Con&tacts"), "contacts")
         add_optional_tab(tabs, self.converter_tab, QIcon(":icons/tab_converter.svg"), _("Address Converter"), "converter", True)
         add_optional_tab(tabs, self.console_tab, QIcon(":icons/tab_console.png"), _("Con&sole"), "console")
+        add_optional_tab(tabs, self.reusable_tab, QIcon(":icons/tab_console.png"), _("Reusable Address"), "reusable", True)
 
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
@@ -2453,6 +2455,57 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.wallet.set_frozen_coin_state(utxos, freeze)
         self.utxo_list.update()
         self.update_fee()
+
+    def create_reusable_tab(self):
+        from .prefix_server import SearchThread
+        import grpc
+        
+        input_hash = QLineEdit()
+        prefix_length = QLineEdit()
+
+        w = QWidget()
+        grid = QGridLayout()
+        grid.setSpacing(15)
+
+        label = QLabel(_('&Input Hash'))
+        label.setBuddy(input_hash)
+        grid.addWidget(label, 0, 0)
+        grid.addWidget(input_hash, 0, 1)
+
+        label = QLabel(_('&Prefix Length'))
+        label.setBuddy(prefix_length)
+        grid.addWidget(label, 1, 0)
+        grid.addWidget(prefix_length, 1, 1)
+
+        search_thread = None
+
+        def matched(item):
+            print(item)
+
+        def finished():
+            print("search finished")
+
+        def start_search():
+            channel = grpc.insecure_channel('35.238.56.17:8950')
+            self.prefix_search = SearchThread(channel, input_hash=bfh(input_hash.text()), n_bytes=int(prefix_length.text()))
+            self.prefix_search.found_signal.connect(matched)
+            self.prefix_search.completion_signal.connect(finished)
+            self.prefix_search.start()
+
+        searchButton = EnterButton(_('Search'), start_search)
+        grid.addLayout(Buttons(searchButton), 2, 1)
+
+
+        w.setLayout(grid)
+
+        vbox = QVBoxLayout()
+        vbox.addWidget(w)
+        vbox.addStretch(1)
+
+        w = QWidget()
+        w.setLayout(vbox)
+
+        return w
 
     def create_converter_tab(self):
 
