@@ -133,6 +133,7 @@ setup(
         'electroncash',
         'electroncash.locale',  # work-around for Android platform limitations
         'electroncash.qrreaders',
+        'electroncash.prefix_server',
         'electroncash.slp',
         'electroncash.utils',
         'electroncash_gui',
